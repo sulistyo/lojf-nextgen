@@ -10,6 +10,8 @@ import (
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+	svc "github.com/lojf/nextgen/internal/services"
+	"gorm.io/gorm"
 )
 
 type parentRow struct {
@@ -61,32 +63,35 @@ func AdminParentsList(t *template.Template) http.HandlerFunc {
 }
 
 func AdminParentShowForm(t *template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		var parent models.Parent
-		if err := db.Conn().First(&parent, id).Error; err != nil { http.NotFound(w, r); return }
-		var kids []models.Child
-		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
+    return func(w http.ResponseWriter, r *http.Request) {
+        id, _ := strconv.Atoi(chi.URLParam(r, "id"))
+        var parent models.Parent
+        if err := db.Conn().First(&parent, id).Error; err != nil { http.NotFound(w, r); return }
+        var kids []models.Child
+        _ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
 
-		msg := ""
-		switch r.URL.Query().Get("ok") {
-		case "saved":
-			msg = "Parent saved."
-		case "child_saved":
-			msg = "Child saved."
-		case "child_deleted":
-			msg = "Child deleted."
-		}
+        msg := ""
+        switch r.URL.Query().Get("ok") {
+        case "saved":         msg = "Parent saved."
+        case "child_saved":   msg = "Child saved."
+        case "child_deleted": msg = "Child deleted."
+        }
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/parent_show.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
-			"Title":  "Admin • Parent",
-			"Parent": parent,
-			"Kids":   kids,
-			"Msg":    msg,
-		})
-	}
+        errMsg := ""
+        if r.URL.Query().Get("err") == "has_future" {
+            errMsg = "Cannot delete: parent has upcoming registrations. Cancel them first."
+        }
+
+        view, _ := t.Clone()
+        _, _ = view.ParseFiles("templates/pages/admin/parent_show.tmpl")
+        _ = view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
+            "Title":  "Admin • Parent",
+            "Parent": parent,
+            "Kids":   kids,
+            "Msg":    msg,
+            "Err":    errMsg, // <-- add
+        })
+    }
 }
 
 
@@ -94,7 +99,7 @@ func AdminParentUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	name := r.FormValue("name")
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	if name == "" || phone == "" { http.Error(w, "missing fields", 400); return }
 
 	var parent models.Parent
@@ -166,4 +171,55 @@ func AdminChildDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "db error", 500); return
 	}
 	http.Redirect(w, r, "/admin/parents/"+strconv.Itoa(parentID)+"?ok=child_deleted", http.StatusSeeOther)
+}
+
+// POST /admin/parents/{id}/delete
+func AdminParentDelete(w http.ResponseWriter, r *http.Request) {
+    idStr := chi.URLParam(r, "id")
+    parentID, _ := strconv.Atoi(idStr)
+    if parentID <= 0 {
+        http.Error(w, "invalid parent id", http.StatusBadRequest)
+        return
+    }
+
+    // ---- SAFETY GUARD: block deletion if there are upcoming registrations
+    var future int64
+    if err := db.Conn().Table("registrations").
+        Joins("JOIN classes ON classes.id = registrations.class_id").
+        Where("registrations.parent_id = ? AND classes.date >= ?", parentID, time.Now()).
+        Count(&future).Error; err != nil {
+        http.Error(w, "db error", http.StatusInternalServerError)
+        return
+    }
+    if future > 0 {
+        // bounce back to detail page with error banner
+        http.Redirect(w, r, "/admin/parents/"+strconv.Itoa(parentID)+"?err=has_future", http.StatusSeeOther)
+        return
+    }
+    // ---------------------------------------
+
+    // Gather impacted classes (to recompute waitlists after delete)
+    var regs []models.Registration
+    if err := db.Conn().Where("parent_id = ?", parentID).Find(&regs).Error; err != nil {
+        http.Error(w, "db error", http.StatusInternalServerError)
+        return
+    }
+    classSet := map[uint]struct{}{}
+    for _, r := range regs { classSet[r.ClassID] = struct{}{} }
+
+    // Delete registrations, children, parent atomically
+    if err := db.Conn().Transaction(func(tx *gorm.DB) error {
+        if err := tx.Where("parent_id = ?", parentID).Delete(&models.Registration{}).Error; err != nil { return err }
+        if err := tx.Where("parent_id = ?", parentID).Delete(&models.Child{}).Error; err != nil { return err }
+        if err := tx.Delete(&models.Parent{}, parentID).Error; err != nil { return err }
+        return nil
+    }); err != nil {
+        http.Error(w, "db error", http.StatusInternalServerError)
+        return
+    }
+
+    // Best-effort recompute for affected classes
+    for cid := range classSet { _ = svc.RecomputeClass(cid) }
+
+    http.Redirect(w, r, "/admin/parents?ok=deleted", http.StatusSeeOther)
 }

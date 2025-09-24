@@ -22,7 +22,7 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		var parent *models.Parent
 		if phone != "" {
 			var p models.Parent
@@ -47,7 +47,7 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 
 func AccountProfileForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		if phone == "" {
 			if cPhone, _ := readParentCookies(r); cPhone != "" {
 				phone = cPhone
@@ -84,7 +84,7 @@ func AccountProfileForm(t *template.Template) http.HandlerFunc {
 
 func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	name := r.FormValue("parent_name")
 	if phone == "" || name == "" { http.Error(w, "missing fields", 400); return }
 
@@ -104,7 +104,7 @@ func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 
 func AccountNewChildForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		if phone == "" { http.Error(w, "missing phone", 400); return }
 
 		var parent models.Parent
@@ -127,7 +127,7 @@ func AccountNewChildForm(t *template.Template) http.HandlerFunc {
 
 func AccountNewChildSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	name := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
 	if phone == "" || name == "" || dob == "" { http.Error(w, "missing fields", 400); return }
@@ -169,7 +169,7 @@ func AccountEditChildForm(t *template.Template) http.HandlerFunc {
 
 func AccountEditChildSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	idStr := r.FormValue("id")
 	name := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
@@ -193,7 +193,7 @@ func AccountEditChildSubmit(w http.ResponseWriter, r *http.Request) {
 
 func AccountDeleteChild(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	idStr := r.FormValue("id")
 	id, _ := strconv.Atoi(idStr)
 	if phone == "" || id == 0 { http.Error(w, "missing fields", 400); return }

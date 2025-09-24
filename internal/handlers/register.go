@@ -25,7 +25,7 @@ func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 		}
 
 		// Optional prefill via ?phone=
-		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		phone := normPhone(r.URL.Query().Get("phone"))
 
 		var parent *models.Parent
 		if phone != "" {
@@ -50,7 +50,7 @@ func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 
 func RegisterPhoneSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := strings.TrimSpace(r.FormValue("phone"))
+	phone := normPhone(r.FormValue("phone"))
 	if phone == "" { http.Error(w, "phone required", 400); return }
 
 	var parent models.Parent
@@ -81,7 +81,7 @@ func RegisterOnboardForm(t *template.Template) http.HandlerFunc {
 
 func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
+	phone := normPhone(r.FormValue("phone"))
 	parentName := r.FormValue("parent_name")
 	childName := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
@@ -118,7 +118,7 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 // ------------------- STEP 2b: returning - choose child -------------------
 func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		if phone == "" { http.Error(w, "missing phone", 400); return }
 
 		var parent models.Parent
@@ -248,7 +248,7 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 			opts = append(opts, classOption{
 				ID:         c.ID,
 				Name:       c.Name,
-				DateStr:    c.Date.Format("Mon, 02 Jan 2006 15:04"),
+				DateStr:    fmtDate(c.Date),
 				Capacity:   c.Capacity,
 				Confirmed:  int(confirmed),
 				Waitlisted: int(waitlisted),

@@ -45,7 +45,7 @@ func Router() http.Handler {
 	r.Get("/my", handlers.MyPhoneForm(tmpl))
 	r.With(handlers.RequireParent).Get("/my/list", handlers.MyList(tmpl))
 	r.With(handlers.RequireParent).Get("/my/qr", handlers.MyQR(tmpl))
-	
+
 	// Parent Account
 	r.Get("/account", handlers.AccountPhoneForm(tmpl)) // phone gate
 	r.Get("/account/logout", handlers.AccountLogout)
@@ -96,6 +96,8 @@ func Router() http.Handler {
 			ag.Post("/parents/{id}", handlers.AdminParentUpdate)
 			ag.Post("/parents/{id}/children/update", handlers.AdminChildUpdate)
 			ag.Post("/parents/{id}/children/delete", handlers.AdminChildDelete)
+			ag.Post("/parents/{id}/delete", handlers.AdminParentDelete)
+
 		})
 	})
 
@@ -103,12 +105,27 @@ func Router() http.Handler {
 }
 
 func mustParseTemplates(baseDir string) *template.Template {
+	// Resolve Jakarta time (fallback to +07 if tzdata missing)
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
+
 	funcs := template.FuncMap{
 		"year": func() string { return time.Now().Format("2006") },
+		// Date-only friendly string in Jakarta, e.g. "Mon, 02 Jan 2006"
+		"jdate": func(t time.Time) string {
+			return t.In(loc).Format("Mon, 02 Jan 2006")
+		},
+		// ISO date for <input type="date"> values, e.g. "2006-01-02"
+		"jisodate": func(t time.Time) string {
+			return t.In(loc).Format("2006-01-02")
+		},
 	}
-	// Parse ONLY base + partials here. Pages are parsed per-request.
+
 	p := template.New("").Funcs(funcs)
 	p = template.Must(p.ParseGlob(filepath.Join(baseDir, "layouts", "*.tmpl")))
 	p = template.Must(p.ParseGlob(filepath.Join(baseDir, "partials", "*.tmpl")))
 	return p
 }
+

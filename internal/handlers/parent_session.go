@@ -13,7 +13,7 @@ const parentPhoneCookie = "parent_phone"
 const parentNameCookie  = "parent_name"
 
 func setParentCookies(w http.ResponseWriter, phone, name string) {
-	phone = strings.TrimSpace(phone)
+	phone = normPhone(phone)
 	name = strings.TrimSpace(name)
 	if phone != "" {
 		http.SetCookie(w, &http.Cookie{
@@ -68,7 +68,7 @@ func RequireParent(next http.Handler) http.Handler {
 		phone, _ := readParentCookies(r)
 		if strings.TrimSpace(phone) == "" {
 			// Accept first-time pass-through if URL has ?phone=... and it exists in DB.
-			qPhone := strings.TrimSpace(r.URL.Query().Get("phone"))
+			qPhone := normPhone(r.URL.Query().Get("phone"))
 			if qPhone != "" {
 				var p models.Parent
 				if err := db.Conn().Where("phone = ?", qPhone).First(&p).Error; err == nil {

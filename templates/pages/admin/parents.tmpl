@@ -6,7 +6,7 @@
   <input name="q" value="{{.Q}}" placeholder="Search name or phone…" class="rounded-xl border p-2">
   <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Search</button>
 </form>
-
+{{if .Msg}}<div class="mb-3 p-3 rounded-xl border bg-green-50 text-green-700 text-sm">{{.Msg}}</div>{{end}}
 <div class="bg-white border rounded-2xl overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="text-left text-gray-500">
@@ -25,7 +25,13 @@
         <td class="py-2 px-3 font-mono">{{.Phone}}</td>
         <td class="py-2 px-3">{{.Children}}</td>
         <td class="py-2 px-3">{{.UpcomingRegs}}</td>
-        <td class="py-2 px-3"><a class="text-sm underline" href="/admin/parents/{{.ID}}">View</a></td>
+        <td class="py-2 px-3">
+          <a class="text-sm underline" href="/admin/parents/{{.ID}}">View</a>
+          <form method="POST" action="/admin/parents/{{.ID}}/delete" style="display:inline" 
+            onsubmit="return confirm('Delete this parent, ALL their children and registrations? This cannot be undone.')">
+            <button class="text-xs text-red-600 underline">Delete</button>
+          </form>
+        </td>
       </tr>
       {{end}}
     </tbody>

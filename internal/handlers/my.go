@@ -29,7 +29,7 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		var parent *models.Parent
 		if phone != "" {
 			var p models.Parent
@@ -97,7 +97,7 @@ func MyList(t *template.Template) http.HandlerFunc {
 				Status:    rrow.Status,
 				ClassName: rrow.ClassName,
 				ClassDate: rrow.ClassDate,
-				DateStr:   rrow.ClassDate.Format("Mon, 02 Jan 2006 15:04"),
+				DateStr:   fmtDate(rrow.ClassDate),
 				ChildName: rrow.ChildName,
 			})
 		}

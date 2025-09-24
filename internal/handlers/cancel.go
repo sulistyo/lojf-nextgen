@@ -43,7 +43,7 @@ func CancelForm(t *template.Template) http.HandlerFunc {
 			"Code":   code,
 			"Child":  child.Name,
 			"Class":  class.Name,
-			"Date":   class.Date.Format("Mon, 02 Jan 2006 15:04"),
+			"Date":   fmtDate(class.Date),
 			"Status": reg.Status,
 		}); err != nil { http.Error(w, err.Error(), 500) }
 	}

@@ -116,7 +116,7 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
 		}
 
 		for i := range rows {
-			rows[i].DateStr = rows[i].ClassDate.Format("Mon, 02 Jan 2006 15:04")
+			rows[i].DateStr = fmtDate(rows[i].ClassDate)
 			if rows[i].CheckInAt != nil {
 				rows[i].CheckInStr = rows[i].CheckInAt.Format("15:04")
 			}
