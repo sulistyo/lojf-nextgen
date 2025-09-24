@@ -1,0 +1,23 @@
+{{define "base"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}}</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Flowbite (components) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.5.2/flowbite.min.css" integrity="sha512-7pS9jMyF6UoIYfx6mQdZI5b8OqP8d8x9c4mS75P8ZCi5lTqqD0e8QxX4l7t5r8zvWQw6Cj2Ykz8T9m0kRr9gGg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.5.2/flowbite.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{template "navbar" .}}
+  <main class="max-w-6xl mx-auto p-6">
+    {{template "content" .}}
+  </main>
+  {{template "footer" .}}
+</body>
+</html>
+{{end}}

@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Welcome back, {{.Parent.Name}}</h1>
+<p class="text-sm text-gray-600 mb-4">
+  Phone <span class="font-mono">{{.Phone}}</span> —
+  <a class="underline" href="/register">not you? use a different number</a>
+</p>
+<form method="POST" action="/register/kids" class="grid gap-4 max-w-xl bg-white p-6 rounded-2xl border">
+  <input type="hidden" name="phone" value="{{.Phone}}">
+  <div class="space-y-2">
+    {{if .Kids}}
+      {{range .Kids}}
+      <label class="flex items-center gap-3 p-3 border rounded-xl">
+        <input type="radio" name="child_id" value="{{.ID}}" required>
+        <div>
+          <div class="font-medium">{{.Name}}</div>
+          <div class="text-xs text-gray-600">DOB: {{.BirthDate}}</div>
+        </div>
+      </label>
+      {{end}}
+    {{else}}
+      <div class="text-gray-600">No children on file yet.</div>
+    {{end}}
+    <label class="flex items-center gap-3 p-3 border rounded-xl">
+      <input type="radio" name="child_id" value="new" required>
+      <div class="font-medium">Add a new child</div>
+    </label>
+  </div>
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Continue</button>
+</form>
+{{end}}
+{{define "parents/kids.tmpl"}}{{template "base" .}}{{end}}

@@ -1,0 +1,25 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Edit Class</h1>
+{{template "admin_nav" .}}
+
+<form method="POST" action="/admin/classes/{{.Class.ID}}" class="grid gap-4 max-w-lg bg-white p-6 rounded-2xl border">
+  <div>
+    <label class="block text-sm mb-1">Date</label>
+    <input type="date" name="date" class="w-full rounded-xl border p-2" value="{{.DateVal}}" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Time (HH:MM, optional)</label>
+    <input type="time" name="time" class="w-full rounded-xl border p-2" value="{{.TimeVal}}">
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Name</label>
+    <input name="name" class="w-full rounded-xl border p-2" value="{{.Class.Name}}" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Capacity</label>
+    <input type="number" min="0" name="capacity" class="w-full rounded-xl border p-2" value="{{.Class.Capacity}}" required>
+  </div>
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+</form>
+{{end}}
+{{define "admin/classes_edit.tmpl"}}{{template "base" .}}{{end}}

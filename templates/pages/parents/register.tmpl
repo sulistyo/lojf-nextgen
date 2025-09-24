@@ -1,0 +1,23 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Register Parent & Child</h1>
+<form method="POST" class="grid gap-4 max-w-lg bg-white p-6 rounded-2xl border">
+  <div>
+    <label class="block text-sm mb-1">Parent Name</label>
+    <input name="parent_name" class="w-full rounded-xl border p-2" placeholder="e.g. John Doe" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Parent Phone</label>
+    <input name="parent_phone" class="w-full rounded-xl border p-2" placeholder="+62…" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Child Name</label>
+    <input name="child_name" class="w-full rounded-xl border p-2" placeholder="e.g. Jane Doe" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Child Date of Birth</label>
+    <input type="date" name="child_dob" class="w-full rounded-xl border p-2" required>
+  </div>
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+</form>
+{{end}}
+{{define "parents/register.tmpl"}}{{template "base" .}}{{end}}

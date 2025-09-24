@@ -1,0 +1,66 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-1">My Account</h1>
+<p class="text-sm text-gray-600 mb-4">
+  Hi, {{.Parent.Name}} <span class="font-mono">({{.Phone}})</span> —
+  <a class="underline" href="/account/logout">not you? use a different number</a>
+</p>
+
+{{if .Msg}}
+  <div class="mb-4 p-3 border rounded-xl bg-green-50 text-green-700 text-sm">{{.Msg}}</div>
+{{end}}
+
+<div class="grid md:grid-cols-2 gap-6 items-start">
+  <!-- Parent form -->
+  <form method="POST" action="/account/profile" class="bg-white border rounded-2xl p-6 grid gap-3">
+    <input type="hidden" name="phone" value="{{.Phone}}">
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Phone</label>
+      <input class="w-full rounded-xl border p-2 bg-gray-50" value="{{.Parent.Phone}}" disabled>
+    </div>
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Parent Name</label>
+      <input name="parent_name" class="w-full rounded-xl border p-2" value="{{.Parent.Name}}" required>
+    </div>
+    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Save</button>
+  </form>
+
+  <!-- Children list -->
+  <div class="bg-white border rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">Children</h2>
+      <a class="text-sm underline" href="/account/children/new?phone={{.Phone}}">Add child</a>
+    </div>
+    <div class="space-y-3">
+      {{if .Kids}}
+        {{range .Kids}}
+          <div class="p-3 border rounded-xl">
+            <form method="POST" action="/account/children/edit" class="grid md:grid-cols-3 gap-3">
+              <input type="hidden" name="id" value="{{.ID}}">
+              <input type="hidden" name="phone" value="{{$.Phone}}">
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">Name</label>
+                <input name="child_name" class="w-full rounded-xl border p-2" value="{{.Name}}" required>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">DOB</label>
+                <input type="date" name="child_dob" class="w-full rounded-xl border p-2" value="{{.BirthDate.Format `2006-01-02`}}" required>
+              </div>
+              <div class="flex items-end gap-2">
+                <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+              </div>
+            </form>
+            <form method="POST" action="/account/children/delete" class="mt-2">
+              <input type="hidden" name="id" value="{{.ID}}">
+              <input type="hidden" name="phone" value="{{$.Phone}}">
+              <button class="px-3 py-2 rounded-xl border" onclick="return confirm('Delete this child?')">Delete</button>
+            </form>
+          </div>
+        {{end}}
+      {{else}}
+        <div class="text-gray-600">No children yet.</div>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+{{define "parents/account_profile.tmpl"}}{{template "base" .}}{{end}}

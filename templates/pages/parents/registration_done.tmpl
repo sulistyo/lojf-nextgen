@@ -1,0 +1,34 @@
+{{define "content"}}
+<div class="max-w-xl bg-white p-6 rounded-2xl border space-y-4">
+  <h1 class="text-2xl font-semibold">Registration {{.Status}}</h1>
+  <p class="text-gray-700">
+    Child <strong>{{.ChildName}}</strong> has been {{.Status}} for
+    <strong>{{.ClassName}}</strong> on <strong>{{.Date}}</strong>.
+  </p>
+
+  {{if eq .Status "waitlisted"}}
+    <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+      <div class="text-sm text-yellow-800">
+        Your current waitlist position: <strong>#{{.Rank}}</strong>
+      </div>
+      <div class="text-xs text-yellow-700 mt-1">
+        You’ll be promoted automatically if a spot opens.
+      </div>
+    </div>
+  {{end}}
+
+  <div class="grid md:grid-cols-2 gap-4 items-center">
+    <div class="p-3 bg-gray-50 rounded-xl">
+      <div class="text-sm text-gray-600">Your fallback code:</div>
+      <div class="font-mono text-lg">{{.Code}}</div>
+      <p class="text-xs text-gray-500 mt-2">Need to cancel? <a class="underline" href="/cancel?code={{.Code}}">Open cancel page</a>.</p>
+    </div>
+    <div class="flex items-center justify-center">
+      <img class="border rounded-xl p-2 bg-white" src="/qr/{{.Code}}.png" alt="QR Code">
+    </div>
+  </div>
+
+  <a class="text-sm underline" href="/">Back to home</a>
+</div>
+{{end}}
+{{define "parents/registration_done.tmpl"}}{{template "base" .}}{{end}}

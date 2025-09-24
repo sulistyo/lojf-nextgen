@@ -1,0 +1,43 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-1">My Registrations</h1>
+<p class="text-sm text-gray-600 mb-4">
+  Hi, {{.Parent.Name}} <span class="font-mono">({{.Phone}})</span> —
+  <a class="underline" href="/account/logout?next=/my">not you? use a different number</a>
+</p>
+<div class="mb-3 text-sm text-gray-600">Phone: <span class="font-mono">{{.Phone}}</span></div>
+<div class="bg-white border rounded-2xl overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-left text-gray-500">
+      <tr>
+        <th class="py-2 px-3">Date</th>
+        <th class="py-2 px-3">Class</th>
+        <th class="py-2 px-3">Child</th>
+        <th class="py-2 px-3">Status</th>
+        <th class="py-2 px-3">Code</th>
+        <th class="py-2 px-3">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{if .Rows}}
+        {{range .Rows}}
+        <tr class="border-t">
+          <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
+          <td class="py-2 px-3">{{.ClassName}}</td>
+          <td class="py-2 px-3">{{.ChildName}}</td>
+          <td class="py-2 px-3">{{.Status}}</td>
+          <td class="py-2 px-3 font-mono">{{.Code}}</td>
+          <td class="py-2 px-3">
+            <a class="text-xs underline" href="/my/qr?code={{.Code}}">Show barcode</a>
+            <span class="mx-1 text-gray-300">•</span>
+            <a class="text-xs underline" href="/cancel?code={{.Code}}">Cancel</a>
+          </td>
+        </tr>
+        {{end}}
+      {{else}}
+        <tr><td class="py-4 px-3 text-gray-600" colspan="6">No upcoming registrations.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{define "parents/my_list.tmpl"}}{{template "base" .}}{{end}}

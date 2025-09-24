@@ -1,0 +1,11 @@
+{{define "admin_nav"}}
+<div class="mb-4 flex items-center gap-4 text-sm">
+  <a class="hover:underline" href="/admin/classes">Classes</a>
+  <a class="hover:underline" href="/admin/roster">Roster</a>
+  <a class="hover:underline" href="/admin/capacity">Capacity</a>
+  <a class="hover:underline" href="/admin/parents">Parents</a>
+  <form method="POST" action="/admin/logout" style="display:inline">
+    <button class="hover:underline">Logout</button>
+  </form>
+</div>
+{{end}}

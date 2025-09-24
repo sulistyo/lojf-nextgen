@@ -1,0 +1,40 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Check-in</h1>
+{{template "admin_nav" .}}
+
+<div class="grid gap-4 max-w-xl">
+  <form method="GET" action="/checkin" class="bg-white p-4 border rounded-2xl grid gap-3">
+    <label class="text-sm">Enter or scan code</label>
+    <input name="code" value="{{.Code}}" class="rounded-xl border p-2" placeholder="REG-123456">
+    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Search</button>
+  </form>
+
+  {{if .ErrorMessage}}
+    <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{{.ErrorMessage}}</div>
+  {{end}}
+
+  {{if .Found}}
+  <div class="bg-white p-4 border rounded-2xl space-y-2">
+    <div><span class="text-sm text-gray-600">Child:</span> <strong>{{.ChildName}}</strong></div>
+    <div><span class="text-sm text-gray-600">Class:</span> <strong>{{.ClassName}}</strong></div>
+    <div><span class="text-sm text-gray-600">Date:</span> <strong>{{.DateStr}}</strong></div>
+    <div><span class="text-sm text-gray-600">Status:</span>
+      {{if eq .Status "confirmed"}}
+        <span class="inline-block px-2 py-0.5 rounded-xl bg-green-100 text-green-700 text-xs">confirmed</span>
+      {{else}}
+        <span class="inline-block px-2 py-0.5 rounded-xl bg-yellow-100 text-yellow-700 text-xs">waitlisted</span>
+      {{end}}
+    </div>
+    {{if .AlreadyIn}}
+      <div class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm">Already checked-in.</div>
+    {{else}}
+      <form method="POST" action="/checkin" class="mt-2">
+        <input type="hidden" name="code" value="{{.Code}}">
+        <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Confirm Check-in</button>
+      </form>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{define "admin/checkin.tmpl"}}{{template "base" .}}{{end}}

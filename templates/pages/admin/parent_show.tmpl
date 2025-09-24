@@ -1,0 +1,55 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Parent</h1>
+{{template "admin_nav" .}}
+
+{{if .Msg}}
+  <div class="mb-4 p-3 border rounded-xl bg-green-50 text-green-700 text-sm">{{.Msg}}</div>
+{{end}}
+
+<div class="grid md:grid-cols-2 gap-6 items-start">
+  <!-- Parent form -->
+  <form method="POST" action="/admin/parents/{{.Parent.ID}}" class="bg-white border rounded-2xl p-6 grid gap-3">
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Name</label>
+      <input name="name" class="w-full rounded-xl border p-2" value="{{.Parent.Name}}" required>
+    </div>
+    <div>
+      <label class="block text-sm text-gray-600 mb-1">Phone</label>
+      <input name="phone" class="w-full rounded-xl border p-2" value="{{.Parent.Phone}}" required>
+      <p class="text-xs text-gray-500 mt-1">Must be unique.</p>
+    </div>
+    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Save</button>
+  </form>
+
+  <!-- Children list -->
+  <div class="bg-white border rounded-2xl p-6">
+    <h2 class="font-semibold mb-3">Children</h2>
+    <div class="space-y-3">
+      {{range .Kids}}
+        <div class="p-3 border rounded-xl">
+          <form method="POST" action="/admin/parents/{{$.Parent.ID}}/children/update" class="grid md:grid-cols-3 gap-3">
+            <input type="hidden" name="child_id" value="{{.ID}}">
+            <div>
+              <label class="block text-xs text-gray-600 mb-1">Name</label>
+              <input name="child_name" class="w-full rounded-xl border p-2" value="{{.Name}}" required>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-600 mb-1">DOB</label>
+              <input type="date" name="child_dob" class="w-full rounded-xl border p-2" value="{{.BirthDate.Format `2006-01-02`}}">
+              <p class="text-[11px] text-gray-500 mt-1">Leave empty to keep existing.</p>
+            </div>
+            <div class="flex items-end gap-2">
+              <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+            </div>
+          </form>
+          <form method="POST" action="/admin/parents/{{$.Parent.ID}}/children/delete" class="mt-2">
+            <input type="hidden" name="child_id" value="{{.ID}}">
+            <button class="px-3 py-2 rounded-xl border" onclick="return confirm('Delete this child?')">Delete</button>
+          </form>
+        </div>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+{{define "admin/parent_show.tmpl"}}{{template "base" .}}{{end}}

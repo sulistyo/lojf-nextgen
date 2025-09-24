@@ -1,0 +1,20 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Add Child</h1>
+<p class="text-sm text-gray-600 mb-4">
+  Hi, {{.Parent.Name}} <span class="font-mono">({{.Phone}})</span> —
+  <a class="underline" href="/account">not you? use a different number</a>
+</p>
+<form method="POST" action="/account/children/new" class="grid gap-4 max-w-lg bg-white p-6 rounded-2xl border">
+  <input type="hidden" name="phone" value="{{.Phone}}">
+  <div>
+    <label class="block text-sm mb-1">Child Name</label>
+    <input name="child_name" class="w-full rounded-xl border p-2" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Child DOB</label>
+    <input type="date" name="child_dob" class="w-full rounded-xl border p-2" required>
+  </div>
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+</form>
+{{end}}
+{{define "parents/account_child_new.tmpl"}}{{template "base" .}}{{end}}

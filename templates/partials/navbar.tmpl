@@ -1,0 +1,14 @@
+{{define "navbar"}}
+<nav class="bg-white border-b">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a class="font-semibold" href="/">LOJF NextGen</a>
+    <div class="flex items-center gap-4" id="nav-links">
+      <a class="text-sm hover:underline" href="/register">Register</a>
+      <a class="text-sm hover:underline" href="/my">My registrations</a>
+      <a class="text-sm hover:underline" href="/account">My account</a>
+      <!-- Admin login link (visible before login) -->
+      <a class="text-sm hover:underline" href="/admin/classes">Admin</a>
+    </div>
+  </div>
+</nav>
+{{end}}

@@ -1,0 +1,18 @@
+# /etc/systemd/system/lojf-nextgen.service
+[Unit]
+Description=LOJF NextGen Manager
+After=network.target
+
+[Service]
+WorkingDirectory=/root/apps/lojf
+ExecStart=/root/apps/lojf/bin/lojf-nextgen
+Restart=always
+RestartSec=3
+Environment=ADDR=:8080
+
+# Consider running under a non-root user in production
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

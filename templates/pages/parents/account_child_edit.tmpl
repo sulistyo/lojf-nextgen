@@ -1,0 +1,17 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Edit Child</h1>
+<form method="POST" action="/account/children/edit" class="grid gap-4 max-w-lg bg-white p-6 rounded-2xl border">
+  <input type="hidden" name="id" value="{{.Child.ID}}">
+  <input type="hidden" name="phone" value="{{.Phone}}">
+  <div>
+    <label class="block text-sm mb-1">Child Name</label>
+    <input name="child_name" class="w-full rounded-xl border p-2" value="{{.Child.Name}}" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Child DOB</label>
+    <input type="date" name="child_dob" class="w-full rounded-xl border p-2" value="{{.BirthDate}}" required>
+  </div>
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Save</button>
+</form>
+{{end}}
+{{define "parents/account_child_edit.tmpl"}}{{template "base" .}}{{end}}
