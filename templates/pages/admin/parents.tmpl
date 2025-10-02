@@ -1,41 +1,47 @@
 {{define "content"}}
 <h1 class="text-2xl font-bold mb-4">Admin • Parents</h1>
 {{template "admin_nav" .}}
+{{template "flash" .}}
 
-<form method="GET" class="mb-3">
-  <input name="q" value="{{.Q}}" placeholder="Search name or phone…" class="rounded-xl border p-2">
-  <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Search</button>
+<form method="GET" class="mb-3 flex gap-2">
+  <input name="q" value="{{.Q}}" placeholder="Search name or phone"
+         class="border rounded-xl px-3 py-2 w-64" />
+  <button class="px-3 py-2 rounded-xl border underline">Search</button>
 </form>
-{{if .Msg}}<div class="mb-3 p-3 rounded-xl border bg-green-50 text-green-700 text-sm">{{.Msg}}</div>{{end}}
-<div class="bg-white border rounded-2xl overflow-x-auto">
-  <table class="w-full text-sm">
-    <thead class="text-left text-gray-500">
-      <tr>
-        <th class="py-2 px-3">Name</th>
-        <th class="py-2 px-3">Phone</th>
-        <th class="py-2 px-3">Children</th>
-        <th class="py-2 px-3">Upcoming</th>
-        <th class="py-2 px-3">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Rows}}
+
+<table class="w-full text-sm border rounded-xl overflow-hidden">
+  <thead class="bg-gray-50">
+    <tr>
+      <th class="px-3 py-2 text-left">Name</th>
+      <th class="px-3 py-2 text-left">Phone</th>
+      <th class="px-3 py-2 text-left">Email</th>
+      <th class="px-3 py-2 text-left">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Parents}}
       <tr class="border-t">
-        <td class="py-2 px-3"><a class="underline" href="/admin/parents/{{.ID}}">{{.Name}}</a></td>
-        <td class="py-2 px-3 font-mono">{{.Phone}}</td>
-        <td class="py-2 px-3">{{.Children}}</td>
-        <td class="py-2 px-3">{{.UpcomingRegs}}</td>
-        <td class="py-2 px-3">
-          <a class="text-sm underline" href="/admin/parents/{{.ID}}">Edit</a>
-          <form method="POST" action="/admin/parents/{{.ID}}/delete" style="display:inline" 
-            onsubmit="return confirm('Delete this parent, ALL their children and registrations? This cannot be undone.')">
-            <button class="text-xs text-red-600 underline">Delete</button>
-          </form>
+        <td class="px-3 py-2"><a class="underline" href="/admin/parents/{{.ID}}">{{.Name}}</a></td>
+        <td class="px-3 py-2">{{.Phone}}</td>
+        <td class="px-3 py-2">{{if .Email}}{{.Email}}{{else}}<span class="text-gray-400">—</span>{{end}}</td>
+        <td class="px-3 py-2">
+          <a class="underline" href="/admin/parents/{{.ID}}">View</a>
         </td>
       </tr>
-      {{end}}
-    </tbody>
-  </table>
+    {{else}}
+      <tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">No parents found.</td></tr>
+    {{end}}
+  </tbody>
+</table>
+
+<!-- Pager -->
+<div class="mt-3 flex items-center gap-3">
+  <div class="text-xs text-gray-500">Total: {{.Total}}</div>
+  <div class="ml-auto flex items-center gap-2">
+    {{if .HasPrev}}<a class="underline" href="?q={{.Q}}&page={{.PrevPage}}&per={{.Per}}">&larr; Prev</a>{{end}}
+    {{if .HasNext}}<a class="underline" href="?q={{.Q}}&page={{.NextPage}}&per={{.Per}}">Next &rarr;</a>{{end}}
+  </div>
 </div>
+
 {{end}}
 {{define "admin/parents.tmpl"}}{{template "base" .}}{{end}}

@@ -3,98 +3,105 @@ package handlers
 import (
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
 )
 
-type checkinView struct {
-	Title        string
-	Code         string
-	Found        bool
-	AlreadyIn    bool
-	ChildName    string
-	ClassName    string
-	DateStr      string
-	Status       string
-	ErrorMessage string
+type checkinRow struct {
+	Code      string
+	Status    string
+	ChildName string
+	ClassName string
+	ClassDate time.Time
+	CheckInAt *time.Time
+	DateStr   string
 }
 
+type checkinVM struct {
+	Title string
+	Code  string
+	Reg   *checkinRow
+	Flash *Flash
+}
+
+// GET /checkin
 func CheckinForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/admin/checkin.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
-		}
+		code := strings.TrimSpace(r.URL.Query().Get("code"))
 
-		code := r.URL.Query().Get("code")
-		vm := checkinView{Title: "Admin • Check-in"}
-		if code == "" {
-			_ = view.ExecuteTemplate(w, "admin/checkin.tmpl", vm)
-			return
-		}
-		vm.Code = code
+		var row *checkinRow
+		errMsg := ""
 
-		var reg models.Registration
-		if err := db.Conn().Where("code = ?", code).First(&reg).Error; err != nil {
-			vm.ErrorMessage = "Code not found."
-			_ = view.ExecuteTemplate(w, "admin/checkin.tmpl", vm)
-			return
-		}
-		vm.Found = true
-		vm.Status = reg.Status
-		if reg.CheckInAt != nil {
-			vm.AlreadyIn = true
-		}
-		var child models.Child
-		_ = db.Conn().First(&child, reg.ChildID).Error
-		var class models.Class
-		_ = db.Conn().First(&class, reg.ClassID).Error
-		vm.ChildName = child.Name
-		vm.ClassName = class.Name
-		vm.DateStr = class.Date.Format("Mon, 02 Jan 2006 15:04")
+		if code != "" {
+			var rr checkinRow
+			if err := db.Conn().Table("registrations r").
+				Select(`r.code, r.status, r.check_in_at,
+						children.name as child_name,
+						classes.name  as class_name,
+						classes.date  as class_date`).
+				Joins("JOIN children ON children.id = r.child_id").
+				Joins("JOIN classes  ON classes.id = r.class_id").
+				Where("r.code = ?", code).
+				Scan(&rr).Error; err == nil && rr.Code != "" {
 
-		// Block non-confirmed
-		if reg.Status != "confirmed" {
-			vm.ErrorMessage = "Only CONFIRMED registrations can be checked in."
-		}
+				loc, _ := time.LoadLocation("Asia/Jakarta")
+				rr.DateStr = rr.ClassDate.In(loc).Format("Mon, 02 Jan 2006 15:04")
 
-		_ = view.ExecuteTemplate(w, "admin/checkin.tmpl", vm)
-	}
-}
-
-func CheckinConfirm(t *template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil { http.Error(w, err.Error(), 400); return }
-		code := r.FormValue("code")
-		if code == "" { http.Error(w, "missing code", 400); return }
-
-		var reg models.Registration
-		if err := db.Conn().Where("code = ?", code).First(&reg).Error; err != nil {
-			http.Error(w, "code not found", 404); return
-		}
-		if reg.Status != "confirmed" {
-			http.Error(w, "only CONFIRMED registrations can be checked in", 400)
-			return
-		}
-		now := time.Now()
-		if reg.CheckInAt == nil {
-			reg.CheckInAt = &now
-			if err := db.Conn().Save(&reg).Error; err != nil {
-				http.Error(w, "db error", 500); return
+				// Optional hint on GET: if not eligible, surface a friendly message
+				if rr.Status != "confirmed" {
+					errMsg = "Only CONFIRMED registrations can be checked in."
+				}
+				row = &rr
 			}
 		}
 
-		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/admin/checkin_done.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
-		}
-		_ = view.ExecuteTemplate(w, "admin/checkin_done.tmpl", map[string]any{
-			"Title": "Checked-in",
-			"Code":  code,
+		view, _ := t.Clone()
+		_, _ = view.ParseFiles("templates/pages/admin/checkin.tmpl")
+		_ = view.ExecuteTemplate(w, "admin/checkin.tmpl", checkinVM{
+			Title: "Admin • Check-in",
+			Code:  code,
+			Reg:   row,
+			Flash: MakeFlash(r, errMsg, ""), // unified flash
 		})
+	}
+}
+
+// POST /checkin
+func CheckinConfirm(t *template.Template) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		code := strings.TrimSpace(r.FormValue("code"))
+		if code == "" {
+			http.Redirect(w, r, "/checkin?error=invalid_code", http.StatusSeeOther)
+			return
+		}
+
+		var reg models.Registration
+		if err := db.Conn().Where("code = ?", code).First(&reg).Error; err != nil || reg.ID == 0 {
+			http.Redirect(w, r, "/checkin?error=code_not_found", http.StatusSeeOther)
+			return
+		}
+		// Business rules for eligibility
+		if reg.Status != "confirmed" {
+			http.Redirect(w, r, "/checkin?error=invalid_checkin&code="+code, http.StatusSeeOther)
+			return
+		}
+		if reg.CheckInAt != nil {
+			http.Redirect(w, r, "/checkin?error=already_checkedin&code="+code, http.StatusSeeOther)
+			return
+		}
+
+		now := time.Now()
+		reg.CheckInAt = &now
+		if err := db.Conn().Save(&reg).Error; err != nil {
+			http.Redirect(w, r, "/checkin?error=invalid_checkin&code="+code, http.StatusSeeOther)
+			return
+		}
+
+		// success → back to GET so the page can show details + green flash
+		http.Redirect(w, r, "/checkin?ok=checked_in&code="+code, http.StatusSeeOther)
 	}
 }

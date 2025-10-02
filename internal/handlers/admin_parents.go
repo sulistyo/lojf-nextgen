@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -24,103 +25,176 @@ type parentRow struct {
 
 func AdminParentsList(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query().Get("q")
+		// Query params
+		q := strings.TrimSpace(r.URL.Query().Get("q"))
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		per, _  := strconv.Atoi(r.URL.Query().Get("per"))
+		if page < 1 { page = 1 }
+		if per  < 1 || per > 200 { per = 25 }
+		offset := (page - 1) * per
 
-		// Load parents
-		var parents []models.Parent
-		dbq := db.Conn().Order("name asc")
+		// Base queries
+		countQ := db.Conn().Model(&models.Parent{})
+		listQ  := db.Conn().Model(&models.Parent{})
+
+		// Optional search: by name, phone (raw), and phone digits-only
 		if q != "" {
-			dbq = dbq.Where("name LIKE ? OR phone LIKE ?", "%"+q+"%", "%"+q+"%")
-		}
-		if err := dbq.Find(&parents).Error; err != nil {
-			http.Error(w, "db error", 500); return
+			like := "%" + strings.ToLower(q) + "%"
+			// digits-only variant for phone
+			digits := q
+			digits = strings.ReplaceAll(digits, " ", "")
+			digits = strings.ReplaceAll(digits, "-", "")
+			digits = strings.ReplaceAll(digits, "(", "")
+			digits = strings.ReplaceAll(digits, ")", "")
+			digits = strings.ReplaceAll(digits, "+", "")
+
+			where := `
+				LOWER(name) LIKE ? OR
+				LOWER(phone) LIKE ? OR
+				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
+			`
+			args := []any{like, like, "%" + digits + "%"}
+			countQ = countQ.Where(where, args...)
+			listQ  = listQ.Where(where, args...)
 		}
 
-		rows := make([]parentRow, 0, len(parents))
-		now := time.Now().Add(-2 * time.Hour)
-		for _, p := range parents {
-			var kids int64
-			db.Conn().Model(&models.Child{}).Where("parent_id = ?", p.ID).Count(&kids)
-			var upcoming int64
-			db.Conn().Table("registrations").
-				Joins("JOIN classes ON classes.id = registrations.class_id").
-				Where("registrations.parent_id = ? AND classes.date >= ?", p.ID, now).
-				Count(&upcoming)
-			rows = append(rows, parentRow{
-				ID: p.ID, Name: p.Name, Phone: p.Phone,
-				Children: kids, UpcomingRegs: upcoming,
-			})
+		// Count
+		var total int64
+		if err := countQ.Count(&total).Error; err != nil {
+			http.Error(w, "db error (count)", http.StatusInternalServerError)
+			return
 		}
 
+		// Fetch page
+		var parents []models.Parent
+		if err := listQ.
+			Order("LOWER(name) asc").
+			Limit(per).
+			Offset(offset).
+			Find(&parents).Error; err != nil {
+			http.Error(w, "db error (list)", http.StatusInternalServerError)
+			return
+		}
+
+		// View model
+		type vm struct {
+			Title    string
+			Q        string
+			Page     int
+			Per      int
+			Total    int64
+			Parents  []models.Parent
+			HasPrev  bool
+			HasNext  bool
+			PrevPage int
+			NextPage int
+			Flash    *Flash
+		}
+		v := vm{
+			Title:    "Admin • Parents",
+			Q:        q,
+			Page:     page,
+			Per:      per,
+			Total:    total,
+			Parents:  parents,
+			HasPrev:  page > 1,
+			HasNext:  int64(offset+per) < total,
+			PrevPage: page - 1,
+			NextPage: page + 1,
+			Flash:    MakeFlash(r, "", ""),
+		}
+
+		// Render (ensure filename + define name match your actual file)
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/admin/parents.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/parents.tmpl", map[string]any{
-			"Title": "Admin • Parents",
-			"Rows":  rows,
-			"Q":     q,
-		})
+		_ = view.ExecuteTemplate(w, "admin/parents.tmpl", v)
 	}
 }
 
 func AdminParentShowForm(t *template.Template) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-        var parent models.Parent
-        if err := db.Conn().First(&parent, id).Error; err != nil { http.NotFound(w, r); return }
-        var kids []models.Child
-        _ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
-        msg := ""
-        switch r.URL.Query().Get("ok") {
-        case "saved":         msg = "Parent saved."
-        case "child_saved":   msg = "Child saved."
-        case "child_deleted": msg = "Child deleted."
-        }
+		var parent models.Parent
+		if err := db.Conn().First(&parent, id).Error; err != nil {
+			http.NotFound(w, r); return
+		}
+		var kids []models.Child
+		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
 
-        errMsg := ""
-        if r.URL.Query().Get("err") == "has_future" {
-            errMsg = "Cannot delete: parent has upcoming registrations. Cancel them first."
-        }
+		// Legacy ?err=has_future support → convert to a human message via MakeFlash’s errStr.
+		errMsg := ""
+		if r.URL.Query().Get("err") == "has_future" {
+			errMsg = "Cannot delete: parent has upcoming registrations. Cancel them first."
+		}
 
-        view, _ := t.Clone()
-        _, _ = view.ParseFiles("templates/pages/admin/parent_show.tmpl")
-        _ = view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
-            "Title":  "Admin • Parent",
-            "Parent": parent,
-            "Kids":   kids,
-            "Msg":    msg,
-            "Err":    errMsg, // <-- add
-        })
-    }
+		view, _ := t.Clone()
+		_, _ = view.ParseFiles("templates/pages/admin/parent_show.tmpl")
+		_ = view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
+			"Title":  "Admin • Parent",
+			"Parent": parent,
+			"Kids":   kids,
+			"Flash":  MakeFlash(r, errMsg, ""), // unifies ?ok=… / ?error=… / errMsg
+		})
+	}
 }
+
 
 
 func AdminParentUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-	name := r.FormValue("name")
-	phone := svc.NormPhone(r.FormValue("phone"))
-	if name == "" || phone == "" { http.Error(w, "missing fields", 400); return }
+	idStr := chi.URLParam(r, "id")
+	pid, _ := strconv.Atoi(idStr)
 
-	var parent models.Parent
-	if err := db.Conn().First(&parent, id).Error; err != nil {
+	var p models.Parent
+	if err := db.Conn().First(&p, pid).Error; err != nil {
 		http.NotFound(w, r); return
 	}
 
-	// Enforce phone uniqueness (simple check)
-	var count int64
-	db.Conn().Model(&models.Parent{}).
-		Where("phone = ? AND id <> ?", phone, parent.ID).Count(&count)
-	if count > 0 { http.Error(w, "phone already in use", 400); return }
+	// Pull submitted values (may be empty if inputs were disabled/missing)
+	nameIn := strings.TrimSpace(r.FormValue("parent_name"))
+	phoneIn := strings.TrimSpace(r.FormValue("phone"))
+	emailRaw := r.FormValue("email")
 
-	parent.Name = name
-	parent.Phone = phone
-	if err := db.Conn().Save(&parent).Error; err != nil {
-		http.Error(w, "db error", 500); return
+	// Normalize
+	email, ok := svc.NormEmail(emailRaw) // "" is allowed
+	if !ok {
+		http.Redirect(w, r, "/admin/parents/"+idStr+"?error=invalid_email", http.StatusSeeOther)
+		return
 	}
-	http.Redirect(w, r, "/admin/parents/"+strconv.Itoa(int(parent.ID))+"?ok=saved", http.StatusSeeOther)
+	var phone string
+	if phoneIn != "" {
+		phone = svc.NormPhone(phoneIn)
+	}
 
+	// If fields weren’t posted, keep current DB values
+	if nameIn == "" { nameIn = p.Name }
+	if phone == "" { phone = p.Phone }
+
+	// Still missing? Then form truly didn’t have data
+	if nameIn == "" || phone == "" {
+		http.Redirect(w, r, "/admin/parents/"+idStr+"?error=missing", http.StatusSeeOther)
+		return
+	}
+
+	// Apply & save
+	p.Name = nameIn
+	p.Phone = phone
+	p.Email = email
+
+	if err := db.Conn().Save(&p).Error; err != nil {
+		le := strings.ToLower(err.Error())
+		if strings.Contains(le, "unique") && strings.Contains(le, "email") {
+			http.Redirect(w, r, "/admin/parents/"+idStr+"?error=email_in_use", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/admin/parents/"+idStr+"?ok=saved", http.StatusSeeOther)
 }
+
 
 // Admin child edit/delete reuse parent-side forms? For clarity, keep simple admin edit inline.
 func AdminChildUpdate(w http.ResponseWriter, r *http.Request) {

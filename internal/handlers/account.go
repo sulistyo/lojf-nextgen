@@ -54,63 +54,97 @@ func AccountProfileForm(t *template.Template) http.HandlerFunc {
 				phone = cPhone
 			}
 		}
+		if phone == "" {
+			http.Error(w, "missing phone", http.StatusBadRequest)
+			return
+		}
+
 		var parent models.Parent
 		if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err != nil {
-			http.Error(w, "parent not found", 404); return
+			http.Error(w, "parent not found", http.StatusNotFound)
+			return
 		}
+
 		var kids []models.Child
 		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
 
-		msg := ""
-		switch r.URL.Query().Get("ok") {
-		case "saved":
-			msg = "Profile saved."
-		case "child_saved":
-			msg = "Child saved."
-		case "child_deleted":
-			msg = "Child deleted."
-		}
-
+		// Telegram link status
 		var tg models.TelegramUser
 		linked := false
 		if err := db.Conn().Where("parent_id = ? AND deliverable = 1", parent.ID).First(&tg).Error; err == nil {
-		    linked = true
+			linked = true
 		}
-
 
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/account_profile.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/account_profile.tmpl", map[string]any{
-			"Title":  "My Account",
-			"Parent": parent,
-			"Kids":   kids,
-			"Phone":  phone,
-			"Msg":    msg,
+			"Title":    "My Account",
+			"Parent":   parent,
+			"Kids":     kids,
+			"Phone":    phone,
 			"LinkCode": r.URL.Query().Get("link_code"),
-		    "TGLinked":  linked,                          // NEW
-		    "TG":        tg,                              // NEW (username, first name, linked_at)
-		    "Success":   r.URL.Query().Get("success"),    // to flash “Unlinked” later			
+			"TGLinked": linked,
+			"TG":       tg,
+			"Flash":    MakeFlash(r, "", ""), // ← unified flash (query ok/error OR handler messages)
 		})
 	}
 }
 
+
+// POST /account/profile
 func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := svc.NormPhone(r.FormValue("phone"))
-	name := r.FormValue("parent_name")
-	if phone == "" || name == "" { http.Error(w, "missing fields", 400); return }
+
+	name := strings.TrimSpace(r.FormValue("parent_name"))
+	newPhone := svc.NormPhone(r.FormValue("phone"))
+
+	// Optional email (normalized + validated)
+	emailRaw := r.FormValue("email")
+	email, ok := svc.NormEmail(emailRaw) // returns "",true if empty is OK
+	if !ok {
+		http.Error(w, "invalid email", http.StatusBadRequest)
+		return
+	}
+
+	if name == "" || newPhone == "" {
+		http.Error(w, "missing fields", http.StatusBadRequest)
+		return
+	}
+
+	// Prefer cookie (in case phone was changed)
+	cookiePhone, _ := readParentCookies(r)
 
 	var parent models.Parent
-	if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err != nil {
-		http.Error(w, "parent not found", 404); return
+	var err error
+	if cookiePhone != "" {
+		err = db.Conn().Where("phone = ?", cookiePhone).First(&parent).Error
 	}
+	if err != nil {
+		// fallback to posted phone
+		if e := db.Conn().Where("phone = ?", newPhone).First(&parent).Error; e != nil {
+			http.Error(w, "parent not found", http.StatusNotFound)
+			return
+		}
+	}
+
 	parent.Name = name
+	parent.Phone = newPhone
+	parent.Email = email // empty string = “unset”
+
 	if err := db.Conn().Save(&parent).Error; err != nil {
-		http.Error(w, "db error", 500); return
+		le := strings.ToLower(err.Error())
+		if strings.Contains(le, "unique") && strings.Contains(le, "email") {
+			http.Redirect(w, r, "/account/profile?error=email_in_use", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
 	}
+
 	setParentCookies(w, parent.Phone, parent.Name)
 	http.Redirect(w, r, "/account/profile?ok=saved", http.StatusSeeOther)
 }
+
 
 // ---------- Add/Edit/Delete child ----------
 

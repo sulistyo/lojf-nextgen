@@ -80,41 +80,85 @@ func RegisterOnboardForm(t *template.Template) http.HandlerFunc {
 	}
 }
 
+// POST /register/onboard
 func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
+
 	phone := svc.NormPhone(r.FormValue("phone"))
-	parentName := r.FormValue("parent_name")
-	childName := r.FormValue("child_name")
-	dob := r.FormValue("child_dob")
-	if phone == "" || parentName == "" || childName == "" || dob == "" {
-		http.Error(w, "missing fields", 400)
+	parentName := strings.TrimSpace(r.FormValue("parent_name"))
+	childName := strings.TrimSpace(r.FormValue("child_name"))
+	dob := strings.TrimSpace(r.FormValue("child_dob"))
+
+	// Optional email
+	emailRaw := r.FormValue("email")
+	email, ok := svc.NormEmail(emailRaw) // "" is allowed
+	if !ok {
+		http.Error(w, "invalid email", http.StatusBadRequest)
 		return
 	}
+
+	if phone == "" || parentName == "" || childName == "" || dob == "" {
+		http.Error(w, "missing fields", http.StatusBadRequest)
+		return
+	}
+
 	d, err := time.Parse("2006-01-02", dob)
 	if err != nil {
-		http.Error(w, "invalid date", 400)
+		http.Error(w, "invalid date", http.StatusBadRequest)
 		return
 	}
-	// upsert parent by phone
+
+	// Upsert parent by normalized phone
 	var parent models.Parent
 	if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err == nil && parent.ID > 0 {
+		changed := false
 		if parent.Name != parentName {
 			parent.Name = parentName
-			_ = db.Conn().Save(&parent).Error
+			changed = true
+		}
+		if parent.Phone != phone {
+			parent.Phone = phone
+			changed = true
+		}
+		if parent.Email != email { // email may be ""
+			parent.Email = email
+			changed = true
+		}
+		if changed {
+			if err := db.Conn().Save(&parent).Error; err != nil {
+				le := strings.ToLower(err.Error())
+				if strings.Contains(le, "unique") && strings.Contains(le, "email") {
+					http.Error(w, "email already used by another account", http.StatusConflict)
+					return
+				}
+				http.Error(w, "save parent failed", http.StatusInternalServerError)
+				return
+			}
 		}
 	} else {
-		parent = models.Parent{Name: parentName, Phone: phone}
+		parent = models.Parent{Name: parentName, Phone: phone, Email: email}
 		if err := db.Conn().Create(&parent).Error; err != nil {
-			http.Error(w, "save parent failed", 500); return
+			le := strings.ToLower(err.Error())
+			if strings.Contains(le, "unique") && strings.Contains(le, "email") {
+				http.Error(w, "email already used by another account", http.StatusConflict)
+				return
+			}
+			http.Error(w, "save parent failed", http.StatusInternalServerError)
+			return
 		}
 	}
+
+	// Create child
 	child := models.Child{Name: childName, BirthDate: d, ParentID: parent.ID}
 	if err := db.Conn().Create(&child).Error; err != nil {
-		http.Error(w, "save child failed", 500); return
+		http.Error(w, "save child failed", http.StatusInternalServerError)
+		return
 	}
+
 	setParentCookies(w, parent.Phone, parent.Name)
 	http.Redirect(w, r, fmt.Sprintf("/register/classes?child_id=%d", child.ID), http.StatusSeeOther)
 }
+
 
 // ------------------- STEP 2b: returning - choose child -------------------
 // RegisterKidsForm shows the children list for the parent (phone from query or cookie)
@@ -249,90 +293,117 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 		Left       int
 		IsFull     bool
 	}
+
+	type classRow struct {
+		ID         uint
+		Name       string
+		Date       time.Time
+		Capacity   int
+		Confirmed  int64
+		Waitlisted int64
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		childIDStr := r.URL.Query().Get("child_id")
-		if childIDStr == "" { http.Error(w, "missing child_id", 400); return }
-		childID, err := strconv.Atoi(childIDStr); if err != nil { http.Error(w, "invalid child_id", 400); return }
+		if childIDStr == "" {
+			http.Error(w, "missing child_id", http.StatusBadRequest)
+			return
+		}
+		childID, err := strconv.Atoi(childIDStr)
+		if err != nil || childID <= 0 {
+			http.Error(w, "invalid child_id", http.StatusBadRequest)
+			return
+		}
 
+		// Load child & parent
 		var child models.Child
-		if err := db.Conn().First(&child, childID).Error; err != nil { http.Error(w, "child not found", 404); return }
-
+		if err := db.Conn().First(&child, childID).Error; err != nil {
+			http.Error(w, "child not found", http.StatusNotFound)
+			return
+		}
 		var parent models.Parent
 		_ = db.Conn().First(&parent, child.ParentID).Error
 
-		now := time.Now()
-		from := now.AddDate(0, 0, -90)
-		to := now.AddDate(0, 6, 0)
+		// Time window: from "now" (UTC) to +6 months
+		nowUTC := time.Now().UTC()
+		toUTC := nowUTC.AddDate(0, 6, 0)
 
-		var classes []models.Class
-		_ = db.Conn().
-			Model(&models.Class{}).
-			Where("classes.date BETWEEN ? AND ?", from, to).
-			Order("classes.date asc").
-			Find(&classes).Error
+		// Aggregate classes with counts in one query
+		var rows []classRow
+		if err := db.Conn().
+			Table("classes c").
+			Select(`
+				c.id, c.name, c.date, c.capacity,
+				COALESCE(SUM(CASE WHEN r.status = 'confirmed'  THEN 1 ELSE 0 END), 0) AS confirmed,
+				COALESCE(SUM(CASE WHEN r.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlisted
+			`).
+			Joins(`LEFT JOIN registrations r ON r.class_id = c.id AND r.status IN ('confirmed','waitlisted')`).
+			Where("c.date BETWEEN ? AND ?", nowUTC, toUTC).
+			Group("c.id").
+			Order("c.date ASC").
+			Scan(&rows).Error; err != nil {
+			http.Error(w, "db error", http.StatusInternalServerError)
+			return
+		}
 
-		opts := make([]classOption, 0, len(classes))
-		for _, c := range classes {
-			var confirmed int64
-			_ = db.Conn().Model(&models.Registration{}).
-				Where("class_id = ? AND status = ?", c.ID, "confirmed").
-				Count(&confirmed).Error
-			var waitlisted int64
-			_ = db.Conn().Model(&models.Registration{}).
-				Where("class_id = ? AND status = ?", c.ID, "waitlisted").
-				Count(&waitlisted).Error
-
-			left := c.Capacity - int(confirmed)
-			if left < 0 { left = 0 }
-
+		// Build options
+		opts := make([]classOption, 0, len(rows))
+		for _, rrow := range rows {
+			left := rrow.Capacity - int(rrow.Confirmed)
+			if left < 0 {
+				left = 0
+			}
 			opts = append(opts, classOption{
-				ID:         c.ID,
-				Name:       c.Name,
-				DateStr:    fmtDate(c.Date),
-				Capacity:   c.Capacity,
-				Confirmed:  int(confirmed),
-				Waitlisted: int(waitlisted),
+				ID:         rrow.ID,
+				Name:       rrow.Name,
+				DateStr:    fmtDate(rrow.Date), // your helper already handles Asia/Jakarta
+				Capacity:   rrow.Capacity,
+				Confirmed:  int(rrow.Confirmed),
+				Waitlisted: int(rrow.Waitlisted),
 				Left:       left,
 				IsFull:     left == 0,
 			})
 		}
 
+		// Render
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/select_class.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/select_class.tmpl", map[string]any{
-			"Title":"Select Class",
-			"Err": r.URL.Query().Get("err"),
-			"Child":child,
-			"Parent":parent,
-			"Phone": parent.Phone,
-			"ClassOptions":opts,
+			"Title":        "Select Class",
+			"Child":        child,
+			"Parent":       parent,
+			"Phone":        parent.Phone,
+			"ClassOptions": opts,
+			"Flash":        MakeFlash(r, "", ""), // use unified flash; remove `.Err` in template
 		})
 	}
 }
 
+
 func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+
 		childID, _ := strconv.Atoi(r.FormValue("child_id"))
 		classID, _ := strconv.Atoi(r.FormValue("class_id"))
-
-		if childID == 0 {
+		if childID <= 0 {
 			http.Error(w, "missing child_id", http.StatusBadRequest); return
 		}
-		if classID == 0 {
+		if classID <= 0 {
 			http.Error(w, "no class selected", http.StatusBadRequest); return
 		}
 
+		// Validate conflicts (duplicate class / same-day)
 		if err := svc.CheckRegistrationConflicts(uint(childID), uint(classID)); err != nil {
 			switch err {
 			case svc.ErrDuplicateReg:
 				http.Redirect(w, r,
-					"/register/classes?child_id="+strconv.Itoa(childID)+"&err="+url.QueryEscape("This child is already registered for this class."),
+					"/register/classes?child_id="+strconv.Itoa(childID)+"&error=already_registered",
 					http.StatusSeeOther)
 				return
 			case svc.ErrSameDayReg:
 				http.Redirect(w, r,
-					"/register/classes?child_id="+strconv.Itoa(childID)+"&err="+url.QueryEscape("This child already has a registration on that day."),
+					"/register/classes?child_id="+strconv.Itoa(childID)+"&error=same_day_conflict",
 					http.StatusSeeOther)
 				return
 			default:
@@ -340,27 +411,42 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 				return
 			}
 		}
-		var child models.Child
-		if err := db.Conn().First(&child, childID).Error; err != nil { http.Error(w, "child not found", 404); return }
-		var class models.Class
-		if err := db.Conn().First(&class, classID).Error; err != nil { http.Error(w, "class not found", 404); return }
 
+		// Load child & class
+		var child models.Child
+		if err := db.Conn().First(&child, childID).Error; err != nil {
+			http.Error(w, "child not found", http.StatusNotFound); return
+		}
+		var class models.Class
+		if err := db.Conn().First(&class, classID).Error; err != nil {
+			http.Error(w, "class not found", http.StatusNotFound); return
+		}
+
+		// Provisional status based on current confirmed count
 		var confirmedCnt int64
 		_ = db.Conn().Model(&models.Registration{}).
-			Where("class_id = ? AND status = ?", class.ID, "confirmed").Count(&confirmedCnt).Error
+			Where("class_id = ? AND status = ?", class.ID, "confirmed").
+			Count(&confirmedCnt).Error
 		status := "waitlisted"
 		if int(confirmedCnt) < class.Capacity {
 			status = "confirmed"
 		}
 
+		// Generate unique registration code
 		var code string
-		for i := 0; i < 5; i++ {
+		for i := 0; i < 10; i++ {
 			code = fmt.Sprintf("REG-%06d", rand.Intn(1000000))
 			var exists int64
 			_ = db.Conn().Model(&models.Registration{}).Where("code = ?", code).Count(&exists).Error
-			if exists == 0 { break }
+			if exists == 0 {
+				break
+			}
+		}
+		if code == "" {
+			http.Error(w, "failed to generate code", http.StatusInternalServerError); return
 		}
 
+		// Create registration
 		reg := models.Registration{
 			ParentID: child.ParentID,
 			ChildID:  child.ID,
@@ -369,9 +455,16 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 			Code:     code,
 		}
 		if err := db.Conn().Create(&reg).Error; err != nil {
-			http.Error(w, "failed to save registration", 500); return
+			http.Error(w, "failed to save registration", http.StatusInternalServerError); return
 		}
 
+		// Rebalance class (authoritative capacity enforcement),
+		// then reload to get the final status.
+		_ = svc.RecomputeClass(uint(class.ID))
+		_ = db.Conn().First(&reg, reg.ID).Error
+		status = reg.Status
+
+		// Compute waitlist rank (FIFO) if still waitlisted
 		var rank int64
 		if status == "waitlisted" {
 			_ = db.Conn().Model(&models.Registration{}).
@@ -380,16 +473,18 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 				Count(&rank).Error
 		}
 
+		// Render result page
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/registration_done.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/registration_done.tmpl", map[string]any{
-			"Title":"Registration Result",
-			"ChildName":child.Name,
-			"ClassName":class.Name,
-			"Date":class.Date.Format("Mon, 02 Jan 2006"),
-			"Status":status,
-			"Code":code,
-			"Rank":rank,
+			"Title":     "Registration Result",
+			"ChildName": child.Name,
+			"ClassName": class.Name,
+			"Date":      fmtDate(class.Date), // uses your Asia/Jakarta formatting helper
+			"Status":    status,
+			"Code":      code,
+			"Rank":      rank,
 		})
 	}
 }
+

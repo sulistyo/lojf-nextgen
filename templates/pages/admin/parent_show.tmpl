@@ -2,13 +2,7 @@
 <h1 class="text-2xl font-bold mb-4">Admin • Parent</h1>
 {{template "admin_nav" .}}
 
-{{if .Err}}
-  <div class="mb-4 p-3 border rounded-xl bg-red-50 text-red-700 text-sm">{{.Err}}</div>
-{{end}}
-{{if .Msg}}
-  <div class="mb-4 p-3 border rounded-xl bg-green-50 text-green-700 text-sm">{{.Msg}}</div>
-{{end}}
-
+{{template "flash" .}}
 
 <div class="grid md:grid-cols-2 gap-6 items-start">
   <!-- Parent form -->
@@ -22,6 +16,13 @@
       <input name="phone" class="w-full rounded-xl border p-2" value="{{.Parent.Phone}}" required>
       <p class="text-xs text-gray-500 mt-1">Must be unique.</p>
     </div>
+    <div class="md:col-span-1">
+      <label class="block text-sm text-gray-700 mb-1">Email (optional)</label>
+      <input name="email" type="email" autocomplete="email"
+             value="{{.Parent.Email}}"
+             placeholder="name@example.com"
+             class="border rounded-xl px-3 py-2 w-full"/>
+    </div>    
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Save</button>
   </form>
 

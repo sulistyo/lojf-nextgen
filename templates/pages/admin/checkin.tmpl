@@ -9,9 +9,7 @@
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Search</button>
   </form>
 
-  {{if .ErrorMessage}}
-    <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{{.ErrorMessage}}</div>
-  {{end}}
+{{template "flash" .}}
 
   {{if .Found}}
   <div class="bg-white p-4 border rounded-2xl space-y-2">

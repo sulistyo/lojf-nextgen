@@ -5,10 +5,7 @@
   <a class="underline" href="/account/logout">not you? use a different number</a>
 </p>
 
-{{if .Msg}}
-  <div class="mb-4 p-3 border rounded-xl bg-green-50 text-green-700 text-sm">{{.Msg}}</div>
-{{end}}
-
+{{template "flash" .}}
 
 <div class="grid md:grid-cols-2 gap-6 items-start">
   <!-- Parent form -->
@@ -22,6 +19,13 @@
       <label class="block text-sm text-gray-600 mb-1">Parent Name</label>
       <input name="parent_name" class="w-full rounded-xl border p-2" value="{{.Parent.Name}}" required>
     </div>
+    <div>
+    <label class="block text-sm text-gray-700 mb-1">Email (optional)</label>
+      <input name="email" type="email" autocomplete="email" value="{{if .Parent.Email}}{{.Parent.Email}}{{end}}"
+       placeholder="name@example.com"
+       class="border rounded-xl px-3 py-2 w-full mb-3"/>
+    </div>
+
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Save</button>
   </form>
 

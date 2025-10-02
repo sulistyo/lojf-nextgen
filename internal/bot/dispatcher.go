@@ -46,21 +46,36 @@ func (d *Dispatcher) Handle(u *Update) {
 
 		// Contact link (no handlers package)
 		if m.Contact != nil && m.Contact.UserID == from.ID {
-			phone := svc.NormPhone(m.Contact.PhoneNumber)
-			tu.Phone = phone
+		    // Normalize + find parent by ANY variant (US numbers, spaces, dashes, etc.)
+		    phone := svc.NormPhone(m.Contact.PhoneNumber)
+		    p, err := svc.FindParentByAny(phone)
+		    if err != nil {
+		        _ = d.c.SendMessage(chat, "Phone not found. On the website: Account → Link Telegram → generate code, then send /link CODE here.", MainKeyboard())
+		        return
+		    }
 
-			if p, err := svc.FindParentByAny(phone); err == nil {
-			    tu.ParentID = &p.ID
-			    now := time.Now()
-			    tu.LinkedAt = &now
-			    tu.Phone = p.Phone // store canonical phone from DB
-			    _ = d.c.SendMessage(chat, fmt.Sprintf("✅ Linked to <b>%s</b> (%s)", p.Name, p.Phone), MainKeyboard())
-			} else {
-			    _ = d.c.SendMessage(chat, "Phone not found. Send /link CODE from the website ‘Link Telegram’.", MainKeyboard())
-			}
-			db.Conn().Save(&tu)
-			return
+		    // Persist the link explicitly (no chance for GORM to skip anything)
+		    now := time.Now()
+		    db.Conn().
+		        Model(&models.TelegramUser{}).
+		        Where("telegram_user_id = ?", from.ID).
+		        Updates(map[string]any{
+		            "chat_id":   chat,
+		            "username":  from.Username,
+		            "first_name": from.FirstName,
+		            "phone":     p.Phone,   // store canonical phone from DB
+		            "parent_id": p.ID,      // link to parent
+		            "linked_at": now,
+		            "deliverable": true,    // make sure web sees this as 'linked'
+		        })
+
+		    _ = d.c.SendMessage(chat,
+		        fmt.Sprintf("✅ Linked to <b>%s</b> (%s)", p.Name, p.Phone),
+		        MainKeyboard(),
+		    )
+		    return
 		}
+
 
 		text := strings.TrimSpace(m.Text)
 		switch {

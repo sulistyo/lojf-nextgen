@@ -1,0 +1,9 @@
+{{define "flash"}}
+  {{with .Flash}}
+    {{if eq .Kind "error"}}
+      <div class="mb-3 p-2 rounded bg-red-50 text-red-800 text-sm">{{.Text}}</div>
+    {{else if or (eq .Kind "ok") (eq .Kind "success")}}
+      <div class="mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">{{.Text}}</div>
+    {{end}}
+  {{end}}
+{{end}}
