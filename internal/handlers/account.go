@@ -9,6 +9,7 @@ import (
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+	svc "github.com/lojf/nextgen/internal/services"
 )
 
 // ---------- Phone gate ----------
@@ -22,7 +23,7 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		var parent *models.Parent
 		if phone != "" {
 			var p models.Parent
@@ -47,7 +48,7 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 
 func AccountProfileForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" {
 			if cPhone, _ := readParentCookies(r); cPhone != "" {
 				phone = cPhone
@@ -70,6 +71,13 @@ func AccountProfileForm(t *template.Template) http.HandlerFunc {
 			msg = "Child deleted."
 		}
 
+		var tg models.TelegramUser
+		linked := false
+		if err := db.Conn().Where("parent_id = ? AND deliverable = 1", parent.ID).First(&tg).Error; err == nil {
+		    linked = true
+		}
+
+
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/account_profile.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/account_profile.tmpl", map[string]any{
@@ -78,13 +86,17 @@ func AccountProfileForm(t *template.Template) http.HandlerFunc {
 			"Kids":   kids,
 			"Phone":  phone,
 			"Msg":    msg,
+			"LinkCode": r.URL.Query().Get("link_code"),
+		    "TGLinked":  linked,                          // NEW
+		    "TG":        tg,                              // NEW (username, first name, linked_at)
+		    "Success":   r.URL.Query().Get("success"),    // to flash “Unlinked” later			
 		})
 	}
 }
 
 func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	name := r.FormValue("parent_name")
 	if phone == "" || name == "" { http.Error(w, "missing fields", 400); return }
 
@@ -104,7 +116,7 @@ func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 
 func AccountNewChildForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" { http.Error(w, "missing phone", 400); return }
 
 		var parent models.Parent
@@ -127,7 +139,7 @@ func AccountNewChildForm(t *template.Template) http.HandlerFunc {
 
 func AccountNewChildSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	name := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
 	if phone == "" || name == "" || dob == "" { http.Error(w, "missing fields", 400); return }
@@ -169,7 +181,7 @@ func AccountEditChildForm(t *template.Template) http.HandlerFunc {
 
 func AccountEditChildSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	idStr := r.FormValue("id")
 	name := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
@@ -193,7 +205,7 @@ func AccountEditChildSubmit(w http.ResponseWriter, r *http.Request) {
 
 func AccountDeleteChild(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	idStr := r.FormValue("id")
 	id, _ := strconv.Atoi(idStr)
 	if phone == "" || id == 0 { http.Error(w, "missing fields", 400); return }

@@ -26,7 +26,7 @@ func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 		}
 
 		// Optional prefill via ?phone=
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 
 		var parent *models.Parent
 		if phone != "" {
@@ -51,7 +51,7 @@ func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 
 func RegisterPhoneSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	if phone == "" { http.Error(w, "phone required", 400); return }
 
 	var parent models.Parent
@@ -82,7 +82,7 @@ func RegisterOnboardForm(t *template.Template) http.HandlerFunc {
 
 func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	parentName := r.FormValue("parent_name")
 	childName := r.FormValue("child_name")
 	dob := r.FormValue("child_dob")
@@ -120,14 +120,14 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 // RegisterKidsForm shows the children list for the parent (phone from query or cookie)
 func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if strings.TrimSpace(phone) == "" {
 			if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
 				phone = cPhone
 			}
 		}
 		// tolerant parent lookup
-		p, err := findParentByAny(phone)
+		p, err := svc.FindParentByAny(phone)
 		if err != nil {
 			http.Error(w, "parent not found", http.StatusNotFound)
 			return
@@ -155,7 +155,7 @@ func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 // RegisterKidsSubmit handles child selection or "add new child"
 func RegisterKidsSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	if strings.TrimSpace(phone) == "" {
 		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
 			phone = cPhone
@@ -198,7 +198,7 @@ func RegisterKidsSubmit(w http.ResponseWriter, r *http.Request) {
 // ------------------- STEP 2c: add a new child -------------------
 func RegisterNewChildForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" { http.Error(w, "missing phone", 400); return }
 
 		var parent models.Parent

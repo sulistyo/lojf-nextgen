@@ -9,6 +9,7 @@
   <div class="mb-4 p-3 border rounded-xl bg-green-50 text-green-700 text-sm">{{.Msg}}</div>
 {{end}}
 
+
 <div class="grid md:grid-cols-2 gap-6 items-start">
   <!-- Parent form -->
   <form method="POST" action="/account/profile" class="bg-white border rounded-2xl p-6 grid gap-3">
@@ -23,6 +24,7 @@
     </div>
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white w-max">Save</button>
   </form>
+
 
   <!-- Children list -->
   <div class="bg-white border rounded-2xl p-6">
@@ -62,5 +64,48 @@
     </div>
   </div>
 </div>
+
+<!-- Link Telegram -->
+<div class="mt-6 p-4 rounded-2xl border bg-white">
+  <h2 class="text-lg font-semibold mb-2">Telegram</h2>
+
+  {{if eq .Success "unlinked"}}
+    <div class="mb-3 p-2 rounded bg-green-50 text-green-800 text-sm">Telegram has been unlinked.</div>
+  {{end}}
+
+  {{if .TGLinked}}
+    <p class="text-sm text-gray-700 mb-2">
+      Linked to
+      {{if .TG.Username}}<span class="font-mono">@{{.TG.Username}}</span>{{else}}<strong>{{.TG.FirstName}}</strong>{{end}}
+      {{if .TG.LinkedAt}} since {{.TG.LinkedAt}}{{end}}
+    </p>
+    <form method="POST" action="/account/unlink_telegram" onsubmit="return confirm('Unlink Telegram from this account?')">
+      <button class="px-3 py-2 rounded-xl border underline text-red-700">Unlink Telegram</button>
+    </form>
+  {{else}}
+    {{if .LinkCode}}
+      <p class="text-sm text-gray-700 mb-2">Your link code (valid ~10 minutes):</p>
+      <div class="flex items-center gap-2 mb-3">
+        <code id="tg-code" class="px-2 py-1 rounded bg-gray-100">{{.LinkCode}}</code>
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('tg-code').textContent)" class="text-sm underline">Copy</button>
+      </div>
+      <p class="text-sm text-gray-700">
+        In Telegram, open the church bot and send: <code>/link {{.LinkCode}}</code>
+      </p>
+      <p class="text-xs text-gray-500 mt-2">Tip: or tap “Share my phone” in the bot to link instantly.</p>
+    {{else}}
+      <p class="text-sm text-gray-700 mb-3">
+        Link your Telegram to receive reminders and QR codes directly in chat.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <form method="POST" action="/account/linkcode">
+          <button class="px-3 py-2 rounded-xl border underline">Generate link code</button>
+        </form>
+        <a class="px-3 py-2 rounded-xl border underline" href="https://t.me/LOJF_NextGen_Bot" target="_blank">Open Telegram bot</a>
+      </div>
+    {{end}}
+  {{end}}
+</div>
+
 {{end}}
 {{define "parents/account_profile.tmpl"}}{{template "base" .}}{{end}}

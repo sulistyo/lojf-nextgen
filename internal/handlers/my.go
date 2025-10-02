@@ -9,6 +9,7 @@ import (
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+	svc "github.com/lojf/nextgen/internal/services"
 )
 
 type myRow struct {
@@ -28,7 +29,7 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 			http.Redirect(w, r, "/my/list", http.StatusSeeOther)
 			return
 		}
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		var parent *models.Parent
 		if phone != "" {
 			var p models.Parent
@@ -51,7 +52,7 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 // GET /my/list?phone=...
 func MyList(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := normPhone(r.URL.Query().Get("phone"))
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if strings.TrimSpace(phone) == "" {
 			if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
 				phone = cPhone

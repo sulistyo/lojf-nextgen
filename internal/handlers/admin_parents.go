@@ -99,7 +99,7 @@ func AdminParentUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 	name := r.FormValue("name")
-	phone := normPhone(r.FormValue("phone"))
+	phone := svc.NormPhone(r.FormValue("phone"))
 	if name == "" || phone == "" { http.Error(w, "missing fields", 400); return }
 
 	var parent models.Parent

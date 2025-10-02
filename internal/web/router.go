@@ -24,6 +24,7 @@ func Router() http.Handler {
 	// Public pages
 	r.Get("/", handlers.Home(tmpl))
 	r.Get("/healthz", handlers.Health)
+	r.Post("/tg/webhook", handlers.TelegramWebhook)
 
 	// --- Parent registration: phone-first flow ---
 	r.Get("/register", handlers.RegisterPhoneForm(tmpl))
@@ -56,6 +57,9 @@ func Router() http.Handler {
 	r.With(handlers.RequireParent).Get("/account/children/edit", handlers.AccountEditChildForm(tmpl))
 	r.With(handlers.RequireParent).Post("/account/children/edit", handlers.AccountEditChildSubmit)
 	r.With(handlers.RequireParent).Post("/account/children/delete", handlers.AccountDeleteChild)
+
+	r.With(handlers.RequireParent).Post("/account/linkcode", handlers.AccountGenerateLinkCode)
+	r.With(handlers.RequireParent).Post("/account/unlink_telegram", handlers.AccountUnlinkTelegram) 
 
 	// QR and Check-in
 	r.Get("/qr/{code}.png", handlers.QR)
