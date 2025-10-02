@@ -1,8 +1,8 @@
 {{define "content"}}
-<h1 class="text-2xl font-bold mb-4">Welcome back, {{.Parent.Name}}</h1>
+<h1 class="text-2xl font-bold mb-1">Welcome Back</h1>
 <p class="text-sm text-gray-600 mb-4">
-  Phone <span class="font-mono">{{.Phone}}</span> —
-  <a class="underline" href="/register">not you? use a different number</a>
+  Hi, {{.Parent.Name}} <span class="font-mono">({{.Phone}})</span> —
+  <a class="underline" href="/account/logout?next=/my">not you? use a different number</a>
 </p>
 <form method="POST" action="/register/kids" class="grid gap-4 max-w-xl bg-white p-6 rounded-2xl border">
   <input type="hidden" name="phone" value="{{.Phone}}">
@@ -13,7 +13,7 @@
         <input type="radio" name="child_id" value="{{.ID}}" required>
         <div>
           <div class="font-medium">{{.Name}}</div>
-          <div class="text-xs text-gray-600">DOB: {{.BirthDate}}</div>
+          <div class="text-xs text-gray-600">{{jlong .BirthDate}}</div>
         </div>
       </label>
       {{end}}

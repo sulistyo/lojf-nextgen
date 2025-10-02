@@ -20,12 +20,14 @@ type rosterRow struct {
 	CheckInAt  *time.Time
 	CheckInStr string
 
-	ParentID  uint
-	ChildName string
-	ClassID   uint
-	ClassName string
-	ClassDate time.Time
-	DateStr   string
+	ParentID    uint
+	ParentName  string   // NEW
+	ParentPhone string   // NEW
+	ChildName   string
+	ClassID     uint
+	ClassName   string
+	ClassDate   time.Time
+	DateStr     string
 
 	CreatedAt    time.Time
 	WaitlistRank int
@@ -90,9 +92,11 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
 			Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
 				registrations.parent_id as parent_id,
 				children.name as child_name,
-				classes.id as class_id, classes.name as class_name, classes.date as class_date`).
+				classes.id as class_id, classes.name as class_name, classes.date as class_date,
+				parents.name as parent_name, parents.phone as parent_phone`).
 			Joins("JOIN children ON children.id = registrations.child_id").
-			Joins("JOIN classes ON classes.id = registrations.class_id").
+			Joins("JOIN classes  ON classes.id  = registrations.class_id").
+			Joins("JOIN parents  ON parents.id  = registrations.parent_id").
 			Where("classes.date BETWEEN ? AND ?", from, to)
 
 		if f.ClassID != "" {
@@ -116,7 +120,7 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
 		}
 
 		for i := range rows {
-			rows[i].DateStr = fmtDate(rows[i].ClassDate)
+			rows[i].DateStr = fmtDate(rows[i].ClassDate) // Jakarta, date-only
 			if rows[i].CheckInAt != nil {
 				rows[i].CheckInStr = rows[i].CheckInAt.Format("15:04")
 			}
@@ -184,9 +188,11 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
 			registrations.parent_id as parent_id,
 			children.name as child_name,
-			classes.id as class_id, classes.name as class_name, classes.date as class_date`).
+			classes.id as class_id, classes.name as class_name, classes.date as class_date,
+			parents.name as parent_name, parents.phone as parent_phone`).
 		Joins("JOIN children ON children.id = registrations.child_id").
-		Joins("JOIN classes ON classes.id = registrations.class_id").
+		Joins("JOIN classes  ON classes.id  = registrations.class_id").
+		Joins("JOIN parents  ON parents.id  = registrations.parent_id").
 		Where("classes.date BETWEEN ? AND ?", from, to)
 
 	if fClassID != "" {
@@ -215,10 +221,10 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 
 	cw := csv.NewWriter(w)
 	defer cw.Flush()
-	_ = cw.Write([]string{"Date", "Class", "Child", "Code", "Status", "CheckedInAt"})
+	_ = cw.Write([]string{"Date", "Class", "Child", "Parent", "Phone", "Code", "Status", "CheckedInAt"})
 
 	for _, row := range rows {
-		dateStr := row.ClassDate.Format("2006-01-02 15:04")
+		dateStr := row.ClassDate.Format("2006-01-02") // date-only in CSV
 		checkStr := ""
 		if row.CheckInAt != nil {
 			checkStr = row.CheckInAt.Format("2006-01-02 15:04")
@@ -227,6 +233,8 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 			dateStr,
 			row.ClassName,
 			row.ChildName,
+			row.ParentName,
+			row.ParentPhone,
 			row.Code,
 			row.Status,
 			checkStr,

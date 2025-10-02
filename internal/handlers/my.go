@@ -28,7 +28,6 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 			http.Redirect(w, r, "/my/list", http.StatusSeeOther)
 			return
 		}
-
 		phone := normPhone(r.URL.Query().Get("phone"))
 		var parent *models.Parent
 		if phone != "" {
@@ -52,7 +51,7 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 // GET /my/list?phone=...
 func MyList(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		if strings.TrimSpace(phone) == "" {
 			if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
 				phone = cPhone
@@ -114,7 +113,7 @@ func MyList(t *template.Template) http.HandlerFunc {
 	}
 }
 
-// GET /my/qr?code=REG-xxxxxx[&phone=...]
+// GET /my/qr?code=REG-xxxxxx
 func MyQR(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := r.URL.Query().Get("phone")
@@ -141,7 +140,7 @@ func MyQR(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		// Ensure the registration belongs to this parent
+		// Registration must belong to this parent
 		var reg models.Registration
 		if err := db.Conn().Where("code = ? AND parent_id = ?", code, parent.ID).First(&reg).Error; err != nil {
 			http.NotFound(w, r)
@@ -153,17 +152,31 @@ func MyQR(t *template.Template) http.HandlerFunc {
 		var class models.Class
 		_ = db.Conn().First(&class, reg.ClassID).Error
 
+		// If waitlisted, compute rank = number of waitlisted regs for this class
+		// with created_at <= this reg's created_at (FIFO).
+		waitRank := 0
+		if reg.Status == "waitlisted" {
+			var cnt int64
+			_ = db.Conn().Model(&models.Registration{}).
+				Where("class_id = ? AND status = ? AND created_at <= ?",
+					reg.ClassID, "waitlisted", reg.CreatedAt).
+				Count(&cnt).Error
+			waitRank = int(cnt)
+		}
+
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/my_qr.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/my_qr.tmpl", map[string]any{
-			"Title":     "My Registration • QR",
-			"Parent":    parent,
-			"Phone":     phone,
-			"ChildName": child.Name,
-			"ClassName": class.Name,
-			"DateStr":   class.Date.Format("Mon, 02 Jan 2006 15:04"),
-			"Code":      code,
-			"QRURL":     "/qr/" + code + ".png",
+			"Title":        "My Registration • QR",
+			"Parent":       parent,
+			"Phone":        phone,
+			"ChildName":    child.Name,
+			"ClassName":    class.Name,
+			"DateStr":      fmtDate(class.Date),
+			"Status":       reg.Status,
+			"WaitlistRank": waitRank,
+			"Code":         reg.Code,                // used only when confirmed
+			"QRURL":        "/qr/" + reg.Code + ".png", // used only when confirmed
 		})
 	}
 }

@@ -21,12 +21,12 @@
     <tbody>
       {{range .Rows}}
       <tr class="border-t">
-        <td class="py-2 px-3">{{.Name}}</td>
+        <td class="py-2 px-3"><a class="underline" href="/admin/parents/{{.ID}}">{{.Name}}</a></td>
         <td class="py-2 px-3 font-mono">{{.Phone}}</td>
         <td class="py-2 px-3">{{.Children}}</td>
         <td class="py-2 px-3">{{.UpcomingRegs}}</td>
         <td class="py-2 px-3">
-          <a class="text-sm underline" href="/admin/parents/{{.ID}}">View</a>
+          <a class="text-sm underline" href="/admin/parents/{{.ID}}">Edit</a>
           <form method="POST" action="/admin/parents/{{.ID}}/delete" style="display:inline" 
             onsubmit="return confirm('Delete this parent, ALL their children and registrations? This cannot be undone.')">
             <button class="text-xs text-red-600 underline">Delete</button>

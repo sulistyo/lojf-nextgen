@@ -103,24 +103,16 @@ func Router() http.Handler {
 
 	return r
 }
-
 func mustParseTemplates(baseDir string) *template.Template {
-	// Resolve Jakarta time (fallback to +07 if tzdata missing)
 	loc, err := time.LoadLocation("Asia/Jakarta")
-	if err != nil {
-		loc = time.FixedZone("WIB", 7*3600)
-	}
+	if err != nil { loc = time.FixedZone("WIB", 7*3600) }
 
 	funcs := template.FuncMap{
-		"year": func() string { return time.Now().Format("2006") },
-		// Date-only friendly string in Jakarta, e.g. "Mon, 02 Jan 2006"
-		"jdate": func(t time.Time) string {
-			return t.In(loc).Format("Mon, 02 Jan 2006")
-		},
-		// ISO date for <input type="date"> values, e.g. "2006-01-02"
-		"jisodate": func(t time.Time) string {
-			return t.In(loc).Format("2006-01-02")
-		},
+		"year":     func() string { return time.Now().Format("2006") },
+		"jdate":    func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
+		"jisodate": func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
+		// NEW: 12 January 2012
+		"jlong":    func(t time.Time) string { return t.In(loc).Format("02 January 2006") },
 	}
 
 	p := template.New("").Funcs(funcs)
@@ -128,4 +120,5 @@ func mustParseTemplates(baseDir string) *template.Template {
 	p = template.Must(p.ParseGlob(filepath.Join(baseDir, "partials", "*.tmpl")))
 	return p
 }
+
 

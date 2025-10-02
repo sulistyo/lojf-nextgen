@@ -5,10 +5,11 @@ import (
 	"html/template"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 	"strings"
-
+	svc "github.com/lojf/nextgen/internal/services"
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
 )
@@ -116,49 +117,88 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // ------------------- STEP 2b: returning - choose child -------------------
+// RegisterKidsForm shows the children list for the parent (phone from query or cookie)
 func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := normPhone(r.URL.Query().Get("phone"))
-		if phone == "" { http.Error(w, "missing phone", 400); return }
-
-		var parent models.Parent
-		if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err != nil {
-			http.Error(w, "parent not found", 404); return
+		if strings.TrimSpace(phone) == "" {
+			if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
+				phone = cPhone
+			}
 		}
+		// tolerant parent lookup
+		p, err := findParentByAny(phone)
+		if err != nil {
+			http.Error(w, "parent not found", http.StatusNotFound)
+			return
+		}
+		parent := *p
+
 		var kids []models.Child
 		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
+
+		// keep cookies fresh and normalized
 		setParentCookies(w, parent.Phone, parent.Name)
+
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/kids.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/kids.tmpl", map[string]any{
 			"Title":  "Welcome back",
 			"Parent": parent,
 			"Kids":   kids,
-			"Phone":  phone,
+			"Phone":  parent.Phone, // normalized phone
 		})
 	}
 }
 
+
+// RegisterKidsSubmit handles child selection or "add new child"
 func RegisterKidsSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	phone := r.FormValue("phone")
-	childSel := r.FormValue("child_id")
-	if phone == "" { http.Error(w, "missing phone", 400); return }
-	if childSel == "" {
-		http.Error(w, "please choose a child or add new", 400); return
+	phone := normPhone(r.FormValue("phone"))
+	if strings.TrimSpace(phone) == "" {
+		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
+			phone = cPhone
+		}
 	}
-	if childSel == "new" {
-		http.Redirect(w, r, "/register/newchild?phone="+phone, http.StatusSeeOther)
+	if strings.TrimSpace(phone) == "" {
+		http.Error(w, "missing phone", http.StatusBadRequest)
 		return
 	}
-	childID, _ := strconv.Atoi(childSel)
+
+	childSel := r.FormValue("child_id")
+	if childSel == "" {
+		http.Error(w, "please choose a child or add new", http.StatusBadRequest)
+		return
+	}
+
+	if childSel == "new" {
+		http.Redirect(w, r, "/register/newchild?phone="+url.QueryEscape(phone), http.StatusSeeOther)
+		return
+	}
+
+	childID, err := strconv.Atoi(childSel)
+	if err != nil || childID <= 0 {
+		http.Error(w, "invalid child", http.StatusBadRequest)
+		return
+	}
+
+	// (Optional safety) ensure the child belongs to this parent
+	var cnt int64
+	db.Conn().Model(&models.Child{}).Where("id = ? AND parent_id = (SELECT id FROM parents WHERE phone = ?)", childID, phone).Count(&cnt)
+	if cnt == 0 {
+		http.Error(w, "child not found for this parent", http.StatusNotFound)
+		return
+	}
+
 	http.Redirect(w, r, fmt.Sprintf("/register/classes?child_id=%d", childID), http.StatusSeeOther)
 }
+
 
 // ------------------- STEP 2c: add a new child -------------------
 func RegisterNewChildForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		phone := r.URL.Query().Get("phone")
+		phone := normPhone(r.URL.Query().Get("phone"))
 		if phone == "" { http.Error(w, "missing phone", 400); return }
 
 		var parent models.Parent
@@ -261,6 +301,7 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 		_, _ = view.ParseFiles("templates/pages/parents/select_class.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/select_class.tmpl", map[string]any{
 			"Title":"Select Class",
+			"Err": r.URL.Query().Get("err"),
 			"Child":child,
 			"Parent":parent,
 			"Phone": parent.Phone,
@@ -282,6 +323,23 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 			http.Error(w, "no class selected", http.StatusBadRequest); return
 		}
 
+		if err := svc.CheckRegistrationConflicts(uint(childID), uint(classID)); err != nil {
+			switch err {
+			case svc.ErrDuplicateReg:
+				http.Redirect(w, r,
+					"/register/classes?child_id="+strconv.Itoa(childID)+"&err="+url.QueryEscape("This child is already registered for this class."),
+					http.StatusSeeOther)
+				return
+			case svc.ErrSameDayReg:
+				http.Redirect(w, r,
+					"/register/classes?child_id="+strconv.Itoa(childID)+"&err="+url.QueryEscape("This child already has a registration on that day."),
+					http.StatusSeeOther)
+				return
+			default:
+				http.Error(w, "validation error", http.StatusBadRequest)
+				return
+			}
+		}
 		var child models.Child
 		if err := db.Conn().First(&child, childID).Error; err != nil { http.Error(w, "child not found", 404); return }
 		var class models.Class

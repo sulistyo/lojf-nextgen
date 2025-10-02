@@ -39,53 +39,56 @@
 <div class="bg-white border rounded-2xl overflow-x-auto">
   {{if .HasResult}}
   <table class="w-full text-sm">
-    <thead class="text-left text-gray-500">
-      <tr>
+    <thead>
+      <tr class="text-left text-sm text-gray-600">
         <th class="py-2 px-3">Date</th>
         <th class="py-2 px-3">Class</th>
         <th class="py-2 px-3">Child</th>
-        <th class="py-2 px-3">Code</th>
+        <th class="py-2 px-3">Parent</th>  
+        <th class="py-2 px-3">Code</th>    
         <th class="py-2 px-3">Status</th>
         <th class="py-2 px-3">Check-in</th>
         <th class="py-2 px-3">Actions</th>
       </tr>
-    </thead>
+    </thead>    
     <tbody>
       {{range .Rows}}
       <tr class="border-t">
-        <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
-        <td class="py-2 px-3">{{.ClassName}}</td>
-        <td class="py-2 px-3">{{.ChildName}}</td>
-        <td class="py-2 px-3 font-mono">{{.Code}}</td>
-        <td class="py-2 px-3">
-          {{if eq .Status "confirmed"}}
-            <span class="inline-block px-2 py-0.5 rounded-xl bg-green-100 text-green-700 text-xs">confirmed</span>
-          {{else if eq .Status "waitlisted"}}
-            <span class="inline-block px-2 py-0.5 rounded-xl bg-yellow-100 text-yellow-700 text-xs">
-              waitlisted{{if .WaitlistRank}} #{{.WaitlistRank}}{{end}}
-            </span>
-          {{else}}
-            <span class="inline-block px-2 py-0.5 rounded-xl bg-gray-100 text-gray-700 text-xs">{{.Status}}</span>
-          {{end}}
-        </td>
-        <td class="py-2 px-3">{{.CheckInStr}}</td>
-        <td class="py-2 px-3 whitespace-nowrap space-x-2">
-          <a class="text-xs underline" href="/admin/classes/{{.ClassID}}/edit">Edit Class</a>
-          {{if eq .Status "confirmed"}}
+
+          <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
+          <td class="py-2 px-3 whitespace-nowrap">{{.ClassName}}</td>
+          <td class="py-2 px-3">{{.ChildName}}</td>
+          <td class="py-2 px-3">
+            
+            <!-- (optional) link to parent detail -->
+            <a class="underline ml-1" href="/admin/parents/{{.ParentID}}">{{.ParentName}}</a>
+          </td>
+          <td class="py-2 px-3 whitespace-nowrap">
+            <span class="font-mono">{{.Code}}</span>
+            <a class="inline-block align-middle ml-2" href="/qr/{{.Code}}.png" target="_blank" title="Show QR">
+              <!-- small QR icon (inline SVG) -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="opacity:.85">
+                <path d="M2 2h4v4H2V2zm1 1v2h2V3H3zM10 2h4v4h-4V2zm1 1v2h2V3h-2zM2 10h4v4H2v-4zm1 1v2h2v-2H3zM10 9h2v2h-2V9zm3 0h1v1h1v1h-2V9zm-3 3h1v1h-1v-1zm2 0h3v3h-3v-3z"/>
+              </svg>
+            </a>
+          </td>
+
+          <td class="py-2 px-3">
+            {{if eq .Status "waitlisted"}}Waitlist (#{{.WaitlistRank}}){{else}}{{.Status}}{{end}}
+          </td>
+          <td class="py-2 px-3 whitespace-nowrap">{{.CheckInStr}}</td>
+          <td class="py-2 px-3 whitespace-nowrap space-x-2">
             <form method="POST" action="/admin/registrations/{{.ID}}/checkin" style="display:inline">
-              <button class="text-xs underline">Check-in</button>
+              <button class="text-xs underline" {{if eq .Status "waitlisted"}}disabled style="opacity:.4; text-decoration:none"{{end}}>Check-in</button>
             </form>
-          {{else}}
-            <span class="text-xs text-gray-400 line-through cursor-not-allowed">Check-in</span>
-          {{end}}
-          <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline">
-            <button class="text-xs underline">Cancel</button>
-          </form>
-          <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline">
-            <button class="text-xs underline">Delete</button>
-          </form>
-        </td>
-      </tr>
+            <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline">
+              <button class="text-xs underline">Cancel</button>
+            </form>
+            <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this registration?')">
+              <button class="text-xs underline">Delete</button>
+            </form>
+          </td>
+        </tr>
       {{end}}
     </tbody>
   </table>

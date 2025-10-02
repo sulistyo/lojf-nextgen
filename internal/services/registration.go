@@ -2,11 +2,18 @@ package services
 
 import (
 	"sort"
+	"errors"
+	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+)
+
+var (
+	ErrDuplicateReg = errors.New("already registered for this class")
+	ErrSameDayReg   = errors.New("already registered for another class on that day")
 )
 
 // RecomputeClass enforces capacity for a class:
@@ -79,5 +86,45 @@ func RecomputeClassTx(tx *gorm.DB, classID uint) error {
 			confirmed++
 		}
 	}
+	return nil
+}
+
+func CheckRegistrationConflicts(childID, classID uint) error {
+	// 1) same class?
+	var dup int64
+	if err := db.Conn().Model(&models.Registration{}).
+		Where("child_id = ? AND class_id = ? AND status IN ?", childID, classID, []string{"confirmed", "waitlisted"}).
+		Count(&dup).Error; err != nil {
+		return err
+	}
+	if dup > 0 {
+		return ErrDuplicateReg
+	}
+
+	// Load class date
+	var class models.Class
+	if err := db.Conn().First(&class, classID).Error; err != nil {
+		return err
+	}
+
+	// 2) same day (Asia/Jakarta)
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	day := class.Date.In(loc)
+	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc)
+	end := start.Add(24 * time.Hour)
+
+	// compare against other classes that day
+	var dayCnt int64
+	if err := db.Conn().Model(&models.Registration{}).
+		Joins("JOIN classes ON classes.id = registrations.class_id").
+		Where("registrations.child_id = ? AND registrations.status IN ?", childID, []string{"confirmed", "waitlisted"}).
+		Where("classes.date >= ? AND classes.date < ?", start.UTC(), end.UTC()).
+		Count(&dayCnt).Error; err != nil {
+		return err
+	}
+	if dayCnt > 0 {
+		return ErrSameDayReg
+	}
+
 	return nil
 }
