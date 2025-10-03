@@ -15,8 +15,9 @@
         You’ll be promoted automatically if a spot opens.
       </div>
     </div>
-  {{end}}
 
+  {{else}}
+  
   <div class="grid md:grid-cols-2 gap-4 items-center">
     <div class="p-3 bg-gray-50 rounded-xl">
       <div class="text-sm text-gray-600">Your fallback code:</div>
@@ -27,6 +28,7 @@
       <img class="border rounded-xl p-2 bg-white" src="/qr/{{.Code}}.png" alt="QR Code">
     </div>
   </div>
+  {{end}}
 
   <a class="text-sm underline" href="/">Back to home</a>
 </div>

@@ -25,7 +25,8 @@ func Router() http.Handler {
 	r.Get("/", handlers.Home(tmpl))
 	r.Get("/healthz", handlers.Health)
 	r.Post("/tg/webhook", handlers.TelegramWebhook)
-
+	r.Get("/switch-number", handlers.SwitchNumber)
+	
 	// --- Parent registration: phone-first flow ---
 	r.Get("/register", handlers.RegisterPhoneForm(tmpl))
 	r.Post("/register", handlers.RegisterPhoneSubmit)

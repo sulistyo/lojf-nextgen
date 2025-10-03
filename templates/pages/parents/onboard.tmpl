@@ -1,8 +1,8 @@
 {{define "content"}}
 <h1 class="text-2xl font-bold mb-4">Tell Us About You</h1>
 <p class="text-sm text-gray-600 mb-3">
-  Using phone <span class="font-mono">{{.Phone}}</span> —
-  <a class="underline" href="/register">not you? use a different number</a>
+  not <span class="font-mono">{{.Phone}}?</span> —
+  <a class="underline" href="/switch-number?return=/register">use a different number</a>
 </p>
 <form method="POST" action="/register/onboard" class="grid gap-4 max-w-lg bg-white p-6 rounded-2xl border">
   <input type="hidden" name="phone" value="{{.Phone}}">

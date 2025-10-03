@@ -19,51 +19,69 @@ func init() { rand.Seed(time.Now().UnixNano()) }
 // ------------------- STEP 1: phone entry -------------------
 func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// If we already know the parent, skip the phone gate
-		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
-			http.Redirect(w, r, "/register/kids?phone="+cPhone, http.StatusSeeOther)
-			return
+		// Optional: allow clearing stale cookie: /register?clear=1
+		if r.URL.Query().Get("clear") == "1" {
+			http.SetCookie(w, &http.Cookie{Name: "parent_phone", Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
+			http.SetCookie(w, &http.Cookie{Name: "parent_name",  Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
 		}
 
-		// Optional prefill via ?phone=
-		phone := svc.NormPhone(r.URL.Query().Get("phone"))
+		// If we have a cookie, only trust it if the parent actually exists
+		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
+			var p models.Parent
+			if err := db.Conn().Where("phone = ?", cPhone).First(&p).Error; err == nil && p.ID > 0 {
+				// valid cookie → skip phone gate
+				http.Redirect(w, r, "/register/kids?phone="+url.QueryEscape(cPhone), http.StatusSeeOther)
+				return
+			}
+			// stale cookie → clear it
+			http.SetCookie(w, &http.Cookie{Name: "parent_phone", Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
+			http.SetCookie(w, &http.Cookie{Name: "parent_name",  Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
+		}
 
-		var parent *models.Parent
+		// Optional prefill via ?phone= (do NOT set cookie unless parent exists)
+		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone != "" {
 			var p models.Parent
-			if err := db.Conn().Where("phone = ?", phone).First(&p).Error; err == nil {
-				parent = &p
-				// refresh cookies so subsequent steps remember it
+			if err := db.Conn().Where("phone = ?", phone).First(&p).Error; err == nil && p.ID > 0 {
+				// existing parent supplied via query → set cookie and go straight to kids
 				setParentCookies(w, p.Phone, p.Name)
+				http.Redirect(w, r, "/register/kids?phone="+url.QueryEscape(phone), http.StatusSeeOther)
+				return
 			}
 		}
 
+		// Render phone entry form (no cookie set yet)
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/register_phone.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/register_phone.tmpl", map[string]any{
-			"Title":  "Register • Phone",
-			"Phone":  phone,
-			"Parent": parent,
+			"Title": "Register • Phone",
+			"Phone": phone, // just a prefill hint
+			"Flash": MakeFlash(r, "", ""),
 		})
 	}
 }
 
-
 func RegisterPhoneSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	phone := svc.NormPhone(r.FormValue("phone"))
-	if phone == "" { http.Error(w, "phone required", 400); return }
+	if phone == "" {
+		http.Error(w, "phone required", http.StatusBadRequest)
+		return
+	}
 
 	var parent models.Parent
 	if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err == nil && parent.ID > 0 {
-		// Returning parent
+		// Returning parent → set cookies and continue
 		setParentCookies(w, parent.Phone, parent.Name)
-		http.Redirect(w, r, "/register/kids?phone="+phone, http.StatusSeeOther)
+		http.Redirect(w, r, "/register/kids?phone="+url.QueryEscape(phone), http.StatusSeeOther)
 		return
 	}
-	// First time (no name yet)
-	setParentCookies(w, phone, "")
-	http.Redirect(w, r, "/register/onboard?phone="+phone, http.StatusSeeOther)
+
+	// New number → DO NOT set cookie yet. Ensure cookies are cleared, then onboard.
+	http.SetCookie(w, &http.Cookie{Name: "parent_phone", Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
+	http.SetCookie(w, &http.Cookie{Name: "parent_name",  Value: "", Path: "/", MaxAge: -1, Expires: time.Unix(0, 0)})
+
+	http.Redirect(w, r, "/register/onboard?phone="+url.QueryEscape(phone), http.StatusSeeOther)
 }
 
 // ------------------- STEP 2a: first-time onboard -------------------
@@ -170,19 +188,27 @@ func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 				phone = cPhone
 			}
 		}
-		// tolerant parent lookup
+
+		// No phone at all → go to phone gate
+		if strings.TrimSpace(phone) == "" {
+			http.Redirect(w, r, "/register", http.StatusSeeOther)
+			return
+		}
+
+		// Tolerant parent lookup (by normalized/any)
 		p, err := svc.FindParentByAny(phone)
-		if err != nil {
-			http.Error(w, "parent not found", http.StatusNotFound)
+		if err != nil || p == nil {
+			// New number: send to onboarding (do NOT set cookies yet)
+			http.Redirect(w, r, "/register/onboard?phone="+url.QueryEscape(phone), http.StatusSeeOther)
 			return
 		}
 		parent := *p
 
+		// Safe now to refresh cookies (parent exists)
+		setParentCookies(w, parent.Phone, parent.Name)
+
 		var kids []models.Child
 		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
-
-		// keep cookies fresh and normalized
-		setParentCookies(w, parent.Phone, parent.Name)
 
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/parents/kids.tmpl")
@@ -190,10 +216,12 @@ func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 			"Title":  "Welcome back",
 			"Parent": parent,
 			"Kids":   kids,
-			"Phone":  parent.Phone, // normalized phone
+			"Phone":  parent.Phone,           // normalized phone
+			"Flash":  MakeFlash(r, "", ""),   // optional: show messages if any
 		})
 	}
 }
+
 
 
 // RegisterKidsSubmit handles child selection or "add new child"
