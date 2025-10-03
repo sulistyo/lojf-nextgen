@@ -15,6 +15,7 @@
       <th class="px-3 py-2 text-left">Name</th>
       <th class="px-3 py-2 text-left">Phone</th>
       <th class="px-3 py-2 text-left">Email</th>
+      <th class="px-3 py-2 text-left">Children (age)</th> 
       <th class="px-3 py-2 text-left">Actions</th>
     </tr>
   </thead>
@@ -24,6 +25,15 @@
         <td class="px-3 py-2"><a class="underline" href="/admin/parents/{{.ID}}">{{.Name}}</a></td>
         <td class="px-3 py-2">{{.Phone}}</td>
         <td class="px-3 py-2">{{if .Email}}{{.Email}}{{else}}<span class="text-gray-400">—</span>{{end}}</td>
+
+        <td class="px-3 py-2">
+          {{with (index $.ChildAges .ID)}}
+            {{.}}
+          {{else}}
+            <span class="text-gray-400">—</span>
+          {{end}}
+        </td>
+        
         <td class="px-3 py-2">
           <a class="underline" href="/admin/parents/{{.ID}}">View</a>
         </td>

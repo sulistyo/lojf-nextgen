@@ -27,7 +27,6 @@ type checkinVM struct {
 	Flash *Flash
 }
 
-// GET /checkin
 func CheckinForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := strings.TrimSpace(r.URL.Query().Get("code"))
@@ -36,21 +35,24 @@ func CheckinForm(t *template.Template) http.HandlerFunc {
 		errMsg := ""
 
 		if code != "" {
-			var rr checkinRow
-			if err := db.Conn().Table("registrations r").
-				Select(`r.code, r.status, r.check_in_at,
-						children.name as child_name,
-						classes.name  as class_name,
-						classes.date  as class_date`).
-				Joins("JOIN children ON children.id = r.child_id").
-				Joins("JOIN classes  ON classes.id = r.class_id").
-				Where("r.code = ?", code).
-				Scan(&rr).Error; err == nil && rr.Code != "" {
+			var reg models.Registration
+			if err := db.Conn().Where("code = ?", code).First(&reg).Error; err == nil && reg.ID != 0 {
+				var child models.Child
+				_ = db.Conn().First(&child, reg.ChildID).Error
+				var class models.Class
+				_ = db.Conn().First(&class, reg.ClassID).Error
 
+				rr := checkinRow{
+					Code:      reg.Code,
+					Status:    reg.Status,
+					ChildName: child.Name,
+					ClassName: class.Name,
+					ClassDate: class.Date,
+					CheckInAt: reg.CheckInAt,
+				}
 				loc, _ := time.LoadLocation("Asia/Jakarta")
 				rr.DateStr = rr.ClassDate.In(loc).Format("Mon, 02 Jan 2006 15:04")
 
-				// Optional hint on GET: if not eligible, surface a friendly message
 				if rr.Status != "confirmed" {
 					errMsg = "Only CONFIRMED registrations can be checked in."
 				}
@@ -58,14 +60,19 @@ func CheckinForm(t *template.Template) http.HandlerFunc {
 			}
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/checkin.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/checkin.tmpl", checkinVM{
+		view, err := t.Clone()
+		if err != nil { http.Error(w, err.Error(), 500); return }
+		if _, err := view.ParseFiles("templates/pages/admin/checkin.tmpl"); err != nil {
+			http.Error(w, err.Error(), 500); return
+		}
+		if err := view.ExecuteTemplate(w, "admin/checkin.tmpl", checkinVM{
 			Title: "Admin • Check-in",
 			Code:  code,
 			Reg:   row,
-			Flash: MakeFlash(r, errMsg, ""), // unified flash
-		})
+			Flash: MakeFlash(r, errMsg, ""),
+		}); err != nil {
+			http.Error(w, err.Error(), 500); return
+		}
 	}
 }
 

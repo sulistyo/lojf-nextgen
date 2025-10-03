@@ -23,93 +23,153 @@ type parentRow struct {
 	UpcomingRegs int64
 }
 
+// internal/handlers/admin_parents.go
+// internal/handlers/admin_parents.go
 func AdminParentsList(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Query params
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		per, _  := strconv.Atoi(r.URL.Query().Get("per"))
+		per, _ := strconv.Atoi(r.URL.Query().Get("per"))
 		if page < 1 { page = 1 }
-		if per  < 1 || per > 200 { per = 25 }
+		if per < 1 || per > 200 { per = 25 }
 		offset := (page - 1) * per
 
-		// Base queries
 		countQ := db.Conn().Model(&models.Parent{})
 		listQ  := db.Conn().Model(&models.Parent{})
 
-		// Optional search: by name, phone (raw), and phone digits-only
 		if q != "" {
 			like := "%" + strings.ToLower(q) + "%"
+
 			// digits-only variant for phone
 			digits := q
-			digits = strings.ReplaceAll(digits, " ", "")
-			digits = strings.ReplaceAll(digits, "-", "")
-			digits = strings.ReplaceAll(digits, "(", "")
-			digits = strings.ReplaceAll(digits, ")", "")
-			digits = strings.ReplaceAll(digits, "+", "")
+			for _, ch := range []string{" ", "-", "(", ")", "+"} {
+				digits = strings.ReplaceAll(digits, ch, "")
+			}
 
+			// Parents whose children match the query (by name)
+			var childParentIDs []uint
+			_ = db.Conn().Model(&models.Child{}).
+				Distinct("parent_id").
+				Where("LOWER(name) LIKE ?", like).
+				Pluck("parent_id", &childParentIDs)
+
+			// Base where: parent name/phone/email
 			where := `
-				LOWER(name) LIKE ? OR
+				LOWER(name)  LIKE ? OR
 				LOWER(phone) LIKE ? OR
-				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
+				REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ? OR
+				LOWER(email) LIKE ?
 			`
-			args := []any{like, like, "%" + digits + "%"}
+			args := []any{like, like, "%" + digits + "%", like}
+
+			// Add child-name hit (parent id in subquery) if any
+			if len(childParentIDs) > 0 {
+				where += " OR id IN ?"
+				args = append(args, childParentIDs)
+			}
+
 			countQ = countQ.Where(where, args...)
 			listQ  = listQ.Where(where, args...)
 		}
 
-		// Count
 		var total int64
 		if err := countQ.Count(&total).Error; err != nil {
-			http.Error(w, "db error (count)", http.StatusInternalServerError)
-			return
+			http.Error(w, "db error (count)", http.StatusInternalServerError); return
 		}
 
-		// Fetch page
 		var parents []models.Parent
 		if err := listQ.
 			Order("LOWER(name) asc").
 			Limit(per).
 			Offset(offset).
 			Find(&parents).Error; err != nil {
-			http.Error(w, "db error (list)", http.StatusInternalServerError)
-			return
+			http.Error(w, "db error (list)", http.StatusInternalServerError); return
 		}
 
-		// View model
+		// ---- Build "Children (age)" summary per parent ----
+		childAges := map[uint]string{}
+		if len(parents) > 0 {
+			ids := make([]uint, 0, len(parents))
+			for _, p := range parents { ids = append(ids, p.ID) }
+
+			type kidRow struct {
+				ParentID  uint
+				Name      string
+				BirthDate time.Time
+			}
+			var kids []kidRow
+			if err := db.Conn().Model(&models.Child{}).
+				Select("parent_id, name, birth_date").
+				Where("parent_id IN ?", ids).
+				Order("name asc").
+				Scan(&kids).Error; err == nil {
+
+				group := make(map[uint][]kidRow, len(ids))
+				for _, k := range kids {
+					group[k.ParentID] = append(group[k.ParentID], k)
+				}
+
+				loc, _ := time.LoadLocation("Asia/Jakarta")
+				ageYears := func(dob time.Time) string {
+					if dob.IsZero() { return "" }
+					now := time.Now().In(loc)
+					y := now.Year() - dob.In(loc).Year()
+					anniv := time.Date(now.Year(), dob.In(loc).Month(), dob.In(loc).Day(), 0, 0, 0, 0, loc)
+					if now.Before(anniv) { y-- }
+					if y < 0 { y = 0 }
+					return strconv.Itoa(y)
+				}
+
+				for pid, arr := range group {
+					parts := make([]string, 0, len(arr))
+					for _, k := range arr {
+						if k.BirthDate.IsZero() {
+							parts = append(parts, k.Name)
+						} else {
+							parts = append(parts, k.Name+" ("+ageYears(k.BirthDate)+")")
+						}
+					}
+					childAges[pid] = strings.Join(parts, ", ")
+				}
+			}
+		}
+
 		type vm struct {
-			Title    string
-			Q        string
-			Page     int
-			Per      int
-			Total    int64
-			Parents  []models.Parent
-			HasPrev  bool
-			HasNext  bool
-			PrevPage int
-			NextPage int
-			Flash    *Flash
+			Title     string
+			Q         string
+			Page      int
+			Per       int
+			Total     int64
+			Parents   []models.Parent
+			HasPrev   bool
+			HasNext   bool
+			PrevPage  int
+			NextPage  int
+			ChildAges map[uint]string
+			Flash     *Flash
 		}
 		v := vm{
-			Title:    "Admin • Parents",
-			Q:        q,
-			Page:     page,
-			Per:      per,
-			Total:    total,
-			Parents:  parents,
-			HasPrev:  page > 1,
-			HasNext:  int64(offset+per) < total,
-			PrevPage: page - 1,
-			NextPage: page + 1,
-			Flash:    MakeFlash(r, "", ""),
+			Title:     "Admin • Parents",
+			Q:         q,
+			Page:      page,
+			Per:       per,
+			Total:     total,
+			Parents:   parents,
+			HasPrev:   page > 1,
+			HasNext:   int64(offset+per) < total,
+			PrevPage:  page - 1,
+			NextPage:  page + 1,
+			ChildAges: childAges,
+			Flash:     MakeFlash(r, "", ""),
 		}
 
-		// Render (ensure filename + define name match your actual file)
 		view, _ := t.Clone()
 		_, _ = view.ParseFiles("templates/pages/admin/parents.tmpl")
 		_ = view.ExecuteTemplate(w, "admin/parents.tmpl", v)
 	}
 }
+
+
 
 func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -141,23 +201,31 @@ func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 
 
 
+// POST /admin/parents/{id}
 func AdminParentUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	idStr := chi.URLParam(r, "id")
-	pid, _ := strconv.Atoi(idStr)
 
-	var p models.Parent
-	if err := db.Conn().First(&p, pid).Error; err != nil {
-		http.NotFound(w, r); return
+	idStr := chi.URLParam(r, "id")
+	pid, err := strconv.Atoi(idStr)
+	if err != nil || pid <= 0 {
+		http.NotFound(w, r)
+		return
 	}
 
-	// Pull submitted values (may be empty if inputs were disabled/missing)
+	// Load the parent
+	var parent models.Parent
+	if err := db.Conn().First(&parent, pid).Error; err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Read inputs
 	nameIn := strings.TrimSpace(r.FormValue("parent_name"))
 	phoneIn := strings.TrimSpace(r.FormValue("phone"))
 	emailRaw := r.FormValue("email")
 
-	// Normalize
-	email, ok := svc.NormEmail(emailRaw) // "" is allowed
+	// Normalize/validate
+	email, ok := svc.NormEmail(emailRaw) // "" allowed
 	if !ok {
 		http.Redirect(w, r, "/admin/parents/"+idStr+"?error=invalid_email", http.StatusSeeOther)
 		return
@@ -167,22 +235,24 @@ func AdminParentUpdate(w http.ResponseWriter, r *http.Request) {
 		phone = svc.NormPhone(phoneIn)
 	}
 
-	// If fields weren’t posted, keep current DB values
-	if nameIn == "" { nameIn = p.Name }
-	if phone == "" { phone = p.Phone }
-
-	// Still missing? Then form truly didn’t have data
+	// Preserve existing values if fields are omitted
+	if nameIn == "" {
+		nameIn = parent.Name
+	}
+	if phone == "" {
+		phone = parent.Phone
+	}
 	if nameIn == "" || phone == "" {
 		http.Redirect(w, r, "/admin/parents/"+idStr+"?error=missing", http.StatusSeeOther)
 		return
 	}
 
 	// Apply & save
-	p.Name = nameIn
-	p.Phone = phone
-	p.Email = email
+	parent.Name = nameIn
+	parent.Phone = phone
+	parent.Email = email // string field; empty string means unset
 
-	if err := db.Conn().Save(&p).Error; err != nil {
+	if err := db.Conn().Save(&parent).Error; err != nil {
 		le := strings.ToLower(err.Error())
 		if strings.Contains(le, "unique") && strings.Contains(le, "email") {
 			http.Redirect(w, r, "/admin/parents/"+idStr+"?error=email_in_use", http.StatusSeeOther)
