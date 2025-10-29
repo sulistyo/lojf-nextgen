@@ -27,6 +27,8 @@ func clearParentCookies(w http.ResponseWriter) {
 func SwitchNumber(w http.ResponseWriter, r *http.Request) {
 	clearParentCookies(w)
 	ret := r.URL.Query().Get("return")
-	if ret == "" { ret = "/register" }
+	if ret == "" {
+		ret = "/register"
+	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
 }

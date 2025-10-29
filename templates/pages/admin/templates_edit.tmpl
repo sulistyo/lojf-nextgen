@@ -1,0 +1,86 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Edit Template</h1>
+{{template "admin_nav" .}}
+
+<form method="POST" action="/admin/templates/{{.Tpl.ID}}" class="grid gap-4 max-w-3xl bg-white p-6 rounded-2xl border">
+  <div>
+    <label class="block text-sm mb-1">Template name</label>
+    <input name="name" class="w-full rounded-xl border p-2" value="{{.Tpl.Name}}" required>
+  </div>
+
+  <div>
+    <label class="block text-sm mb-1">Description</label>
+    <textarea name="description" class="w-full rounded-xl border p-2" rows="3">{{.Tpl.Description}}</textarea>
+  </div>
+
+  <h2 class="mt-6 font-semibold">Custom Questions</h2>
+  <p class="text-xs text-gray-500 mb-2">Add optional questions that will be copied into a class when you use this template.</p>
+
+  <div id="q-list" class="space-y-3">
+    {{range $i, $q := .Questions}}
+    <div class="p-3 border rounded-xl">
+      <input type="hidden" name="q_id[]" value="{{$q.ID}}">
+      <div class="flex gap-2 items-center">
+        <input name="q_label[]" value="{{$q.Label}}" placeholder="Question label" class="border rounded-xl px-3 py-2 w-1/2" required>
+        <select name="q_kind[]" class="border rounded-xl px-3 py-2">
+          <option value="text"  {{if eq $q.Kind "text"}}selected{{end}}>Text input</option>
+          <option value="radio" {{if eq $q.Kind "radio"}}selected{{end}}>Multiple choice (radio)</option>
+        </select>
+        <label class="ml-3 text-sm">
+          <input type="checkbox" name="q_required_{{$i}}" {{if $q.Required}}checked{{end}}> Required
+        </label>
+        <label class="ml-3 text-sm text-red-600">
+          <input type="checkbox" name="q_delete[]" value="1"> Delete
+        </label>
+        <div class="ml-auto w-24">
+          <input name="q_position[]" value="{{$q.Position}}" class="border rounded-xl px-3 py-2 w-full" placeholder="Pos">
+        </div>
+      </div>
+      <div class="mt-2">
+        <input name="q_choices[]" value="{{$q.Options}}" placeholder="Choices for radio, comma-separated (e.g., Yes,No)" class="border rounded-xl px-3 py-2 w-full">
+      </div>
+    </div>
+    {{end}}
+  </div>
+
+  <button type="button" class="mt-2 underline" onclick="addQ()">+ Add question</button>
+
+  <div class="flex gap-2">
+    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Save Template</button>
+    <a href="/admin/templates" class="px-4 py-2 rounded-xl border">Back</a>
+  </div>
+</form>
+
+<script>
+let qIndex = {{len .Questions}};
+function addQ() {
+  const i = qIndex++;
+  const wrap = document.createElement('div');
+  wrap.className = 'p-3 border rounded-xl';
+  wrap.innerHTML = `
+    <input type="hidden" name="q_id[]" value="">
+    <div class="flex gap-2 items-center">
+      <input name="q_label[]" placeholder="Question label" class="border rounded-xl px-3 py-2 w-1/2" required>
+      <select name="q_kind[]" class="border rounded-xl px-3 py-2">
+        <option value="text">Text input</option>
+        <option value="radio">Multiple choice (radio)</option>
+      </select>
+      <label class="ml-3 text-sm">
+        <input type="checkbox" name="q_required_${i}"> Required
+      </label>
+      <label class="ml-3 text-sm text-red-600">
+        <input type="checkbox" name="q_delete[]" value="1"> Delete
+      </label>
+      <div class="ml-auto w-24">
+        <input name="q_position[]" value="${i}" class="border rounded-xl px-3 py-2 w-full" placeholder="Pos">
+      </div>
+    </div>
+    <div class="mt-2">
+      <input name="q_choices[]" placeholder="Choices for radio, comma-separated (e.g., Yes,No)" class="border rounded-xl px-3 py-2 w-full">
+    </div>
+  `;
+  document.getElementById('q-list').appendChild(wrap);
+}
+</script>
+{{end}}
+{{define "admin/templates_edit.tmpl"}}{{template "base" .}}{{end}}

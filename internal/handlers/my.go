@@ -4,8 +4,8 @@ package handlers
 import (
 	"html/template"
 	"net/http"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
@@ -39,13 +39,21 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 		}
 
 		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/parents/my_phone.tmpl"); err != nil { http.Error(w, err.Error(), 500); return }
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		if _, err := view.ParseFiles("templates/pages/parents/my_phone.tmpl"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		if err := view.ExecuteTemplate(w, "parents/my_phone.tmpl", map[string]any{
 			"Title":  "My Registrations",
 			"Phone":  phone,
 			"Parent": parent,
-		}); err != nil { http.Error(w, err.Error(), 500) }
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 
@@ -103,14 +111,22 @@ func MyList(t *template.Template) http.HandlerFunc {
 		}
 
 		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/parents/my_list.tmpl"); err != nil { http.Error(w, err.Error(), 500); return }
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		if _, err := view.ParseFiles("templates/pages/parents/my_list.tmpl"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		if err := view.ExecuteTemplate(w, "parents/my_list.tmpl", map[string]any{
 			"Title":  "My Registrations",
 			"Phone":  phone,
 			"Rows":   out,
 			"Parent": parent,
-		}); err != nil { http.Error(w, err.Error(), 500) }
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 
@@ -176,9 +192,8 @@ func MyQR(t *template.Template) http.HandlerFunc {
 			"DateStr":      fmtDate(class.Date),
 			"Status":       reg.Status,
 			"WaitlistRank": waitRank,
-			"Code":         reg.Code,                // used only when confirmed
+			"Code":         reg.Code,                   // used only when confirmed
 			"QRURL":        "/qr/" + reg.Code + ".png", // used only when confirmed
 		})
 	}
 }
-

@@ -11,7 +11,9 @@ import (
 )
 
 func StartReminderLoop() {
-	if os.Getenv("TG_ENABLE_REMINDERS") != "1" { return }
+	if os.Getenv("TG_ENABLE_REMINDERS") != "1" {
+		return
+	}
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()

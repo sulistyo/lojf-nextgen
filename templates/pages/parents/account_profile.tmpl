@@ -41,8 +41,8 @@
         {{range .Kids}}
           <div class="p-3 border rounded-xl">
             <form method="POST" action="/account/children/edit" class="grid md:grid-cols-3 gap-3">
-              <input type="hidden" name="id" value="{{.ID}}">
-              <input type="hidden" name="phone" value="{{$.Phone}}">
+              <input type="hidden" name="child_id" value="{{.ID}}">
+              <input type="hidden" name="phone" value="{{$.Parent.Phone}}">
               <div>
                 <label class="block text-xs text-gray-600 mb-1">Name</label>
                 <input name="child_name" class="w-full rounded-xl border p-2" value="{{.Name}}" required>
@@ -51,6 +51,15 @@
                 <label class="block text-xs text-gray-600 mb-1">DOB</label>
                 <input type="date" name="child_dob" class="w-full rounded-xl border p-2" value="{{.BirthDate.Format `2006-01-02`}}" required>
               </div>
+              <div>
+                <label class="block text-xs mb-1">Gender</label>
+                <select name="child_gender" class="w-full rounded-xl border p-2">
+                  <option value="" {{if eq .Gender ""}}selected{{end}}>—</option>
+                  <option value="male" {{if eq .Gender "male"}}selected{{end}}>Male</option>
+                  <option value="female" {{if eq .Gender "female"}}selected{{end}}>Female</option>
+                </select>
+              </div>
+
               <div class="flex items-end gap-2">
                 <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Save</button>
               </div>

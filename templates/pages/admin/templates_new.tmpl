@@ -1,0 +1,52 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • New Template</h1>
+{{template "admin_nav" .}}
+
+<form method="POST" action="/admin/templates" class="grid gap-4 max-w-3xl bg-white p-6 rounded-2xl border">
+  <div>
+    <label class="block text-sm mb-1">Name</label>
+    <input name="name" class="w-full rounded-xl border p-2" required>
+  </div>
+  <div>
+    <label class="block text-sm mb-1">Description</label>
+    <textarea name="description" class="w-full rounded-xl border p-2" rows="3"></textarea>
+  </div>
+
+  <h2 class="mt-2 font-semibold">Custom Questions</h2>
+  <p class="text-xs text-gray-500">Add optional questions parents must answer when registering.</p>
+
+  <div id="q-list"></div>
+  <button type="button" class="mt-2 underline" onclick="addQ()">+ Add question</button>
+
+  <button class="mt-4 px-4 py-2 rounded-xl bg-gray-900 text-white">Create</button>
+</form>
+
+<script>
+let qIndex = 0;
+function addQ(data) {
+  const i = qIndex++;
+  const row = document.createElement('div');
+  row.className = 'mt-2 p-3 border rounded-xl';
+  const label = data?.label || '';
+  const kind = data?.kind || 'text';
+  const opts = data?.options || '';
+  const req  = data?.required ? 'checked' : '';
+  row.innerHTML = `
+    <div class="flex flex-wrap gap-2 items-center">
+      <input name="q_label[]" placeholder="Question label" class="border rounded-xl px-3 py-2 grow" value="${label}" required>
+      <select name="q_kind[]" class="border rounded-xl px-3 py-2">
+        <option value="text"  ${kind==='text'?'selected':''}>Text</option>
+        <option value="radio" ${kind==='radio'?'selected':''}>Radio</option>
+      </select>
+      <label class="ml-3 text-sm"><input type="checkbox" name="q_required[]" value="${i}" ${req}> Required</label>
+      <button type="button" class="ml-auto text-red-600 underline" onclick="this.closest('div.mt-2').remove()">Remove</button>
+    </div>
+    <div class="mt-2">
+      <input name="q_options[]" placeholder="Radio options, comma-separated" class="border rounded-xl px-3 py-2 w-full" value="${opts}">
+    </div>
+  `;
+  document.getElementById('q-list').appendChild(row);
+}
+</script>
+{{end}}
+{{define "admin/templates_new.tmpl"}}{{template "base" .}}{{end}}

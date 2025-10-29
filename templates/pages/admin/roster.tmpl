@@ -1,5 +1,6 @@
 {{define "content"}}
 <h1 class="text-2xl font-bold mb-4">Admin • Roster</h1>
+{{$root := .}}
 {{template "admin_nav" .}}
 
 <form method="GET" class="bg-white p-4 border rounded-2xl grid md:grid-cols-5 gap-3 mb-4">
@@ -44,6 +45,7 @@
         <th class="py-2 px-3">Date</th>
         <th class="py-2 px-3">Class</th>
         <th class="py-2 px-3">Child</th>
+        <th class="text-left px-3 py-2">Answers</th>
         <th class="py-2 px-3">Parent</th>  
         <th class="py-2 px-3">Code</th>    
         <th class="py-2 px-3">Status</th>
@@ -57,7 +59,20 @@
 
           <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
           <td class="py-2 px-3 whitespace-nowrap">{{.ClassName}}</td>
-          <td class="py-2 px-3">{{.ChildName}}</td>
+          <td class="align-top py-2">
+            <div class="font-medium">{{.ChildName}}</div>
+            <div class="text-xs text-gray-600">
+              {{if .Gender}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{.Gender}}</span>{{end}}
+              {{if .BirthDate}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{fmtDate .BirthDate}}</span>{{end}}
+            </div>
+            {{/* existing custom-answers badges remain below if you added them */}}
+          </td>
+          <td class="align-top px-3 py-2 text-sm">
+          {{with index $root.Answers .ID}}
+           {{range $i, $s := .}}{{if $i}}, {{end}}{{ $s }}{{end}}
+          {{end}}
+          </td>
+        </td>
           <td class="py-2 px-3">
             
             <!-- (optional) link to parent detail -->

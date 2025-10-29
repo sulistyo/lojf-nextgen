@@ -14,13 +14,19 @@ func init() {
 	events.OnPromotion = func(reg models.Registration) {
 		// Load related records
 		var p models.Parent
-		if err := db.Conn().First(&p, reg.ParentID).Error; err != nil { return }
-		var c models.Child; _ = db.Conn().First(&c, reg.ChildID).Error
-		var cl models.Class; _ = db.Conn().First(&cl, reg.ClassID).Error
+		if err := db.Conn().First(&p, reg.ParentID).Error; err != nil {
+			return
+		}
+		var c models.Child
+		_ = db.Conn().First(&c, reg.ChildID).Error
+		var cl models.Class
+		_ = db.Conn().First(&cl, reg.ClassID).Error
 
 		// Find linked Telegram user
 		var tu models.TelegramUser
-		if err := db.Conn().Where("parent_id = ? AND deliverable = 1", p.ID).First(&tu).Error; err != nil { return }
+		if err := db.Conn().Where("parent_id = ? AND deliverable = 1", p.ID).First(&tu).Error; err != nil {
+			return
+		}
 
 		loc, _ := time.LoadLocation("Asia/Jakarta")
 		dateStr := cl.Date.In(loc).Format("Mon, 02 Jan 2006")

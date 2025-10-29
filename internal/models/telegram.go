@@ -3,8 +3,8 @@ package models
 import "time"
 
 type TelegramUser struct {
-	ID             uint      `gorm:"primarykey"`
-	TelegramUserID int64     `gorm:"uniqueIndex"`
+	ID             uint  `gorm:"primarykey"`
+	TelegramUserID int64 `gorm:"uniqueIndex"`
 	ChatID         int64
 	Username       string
 	FirstName      string

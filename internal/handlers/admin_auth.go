@@ -32,8 +32,15 @@ func RequireAdmin(next http.Handler) http.Handler {
 // GET /admin/login
 func AdminLoginForm(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		view, err := t.Clone(); if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/admin/login.tmpl"); err != nil { http.Error(w, err.Error(), 500); return }
+		view, err := t.Clone()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		if _, err := view.ParseFiles("templates/pages/admin/login.tmpl"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 
 		_ = view.ExecuteTemplate(w, "admin/login.tmpl", map[string]any{
 			"Title": "Admin • Login",
@@ -44,7 +51,10 @@ func AdminLoginForm(t *template.Template) http.HandlerFunc {
 
 // POST /admin/login
 func AdminLoginSubmit(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil { http.Error(w, err.Error(), 400); return }
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
 	pw := r.FormValue("password")
 	next := r.FormValue("next")
 	if pw != adminPassword() {
@@ -59,7 +69,9 @@ func AdminLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(24 * time.Hour),
 	})
-	if next == "" { next = "/admin/classes" }
+	if next == "" {
+		next = "/admin/classes"
+	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
@@ -70,7 +82,7 @@ func AdminLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Expires:  time.Unix(0,0),
+		Expires:  time.Unix(0, 0),
 	})
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

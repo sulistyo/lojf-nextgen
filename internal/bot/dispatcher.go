@@ -46,41 +46,40 @@ func (d *Dispatcher) Handle(u *Update) {
 
 		// Contact link (no handlers package)
 		if m.Contact != nil && m.Contact.UserID == from.ID {
-		    // Normalize + find parent by ANY variant (US numbers, spaces, dashes, etc.)
-		    phone := svc.NormPhone(m.Contact.PhoneNumber)
-		    p, err := svc.FindParentByAny(phone)
-		    if err != nil {
-		        _ = d.c.SendMessage(chat, "Phone not found. On the website: Account → Link Telegram → generate code, then send /link CODE here.", MainKeyboard())
-		        return
-		    }
+			// Normalize + find parent by ANY variant (US numbers, spaces, dashes, etc.)
+			phone := svc.NormPhone(m.Contact.PhoneNumber)
+			p, err := svc.FindParentByAny(phone)
+			if err != nil {
+				_ = d.c.SendMessage(chat, "Phone not found. On the website: Account → Link Telegram → generate code, then send /link CODE here.", MainKeyboard())
+				return
+			}
 
-		    // Persist the link explicitly (no chance for GORM to skip anything)
-		    now := time.Now()
-		    db.Conn().
-		        Model(&models.TelegramUser{}).
-		        Where("telegram_user_id = ?", from.ID).
-		        Updates(map[string]any{
-		            "chat_id":   chat,
-		            "username":  from.Username,
-		            "first_name": from.FirstName,
-		            "phone":     p.Phone,   // store canonical phone from DB
-		            "parent_id": p.ID,      // link to parent
-		            "linked_at": now,
-		            "deliverable": true,    // make sure web sees this as 'linked'
-		        })
+			// Persist the link explicitly (no chance for GORM to skip anything)
+			now := time.Now()
+			db.Conn().
+				Model(&models.TelegramUser{}).
+				Where("telegram_user_id = ?", from.ID).
+				Updates(map[string]any{
+					"chat_id":     chat,
+					"username":    from.Username,
+					"first_name":  from.FirstName,
+					"phone":       p.Phone, // store canonical phone from DB
+					"parent_id":   p.ID,    // link to parent
+					"linked_at":   now,
+					"deliverable": true, // make sure web sees this as 'linked'
+				})
 
-		    _ = d.c.SendMessage(chat,
-		        fmt.Sprintf("✅ Linked to <b>%s</b> (%s)", p.Name, p.Phone),
-		        MainKeyboard(),
-		    )
-		    return
+			_ = d.c.SendMessage(chat,
+				fmt.Sprintf("✅ Linked to <b>%s</b> (%s)", p.Name, p.Phone),
+				MainKeyboard(),
+			)
+			return
 		}
-
 
 		text := strings.TrimSpace(m.Text)
 		switch {
 		case strings.HasPrefix(text, "/start"):
-			_ = d.c.SendMessage(chat,"Hi! Tap the button below to link your account by sharing your phone number.", ContactKeyboard())
+			_ = d.c.SendMessage(chat, "Hi! Tap the button below to link your account by sharing your phone number.", ContactKeyboard())
 			//_ = d.c.SendMessage(chat, "Hi! Use <b>My registrations</b>, <b>Register</b>, <b>Add child</b>, or <b>Account</b>. To link: share your phone or use /link 123456.", MainKeyboard())
 		case strings.HasPrefix(text, "/link"):
 			code := strings.TrimSpace(strings.TrimPrefix(text, "/link"))
@@ -111,7 +110,7 @@ func MainKeyboard() any {
 			{{"text": "Add child"}},
 			{{"text": "Account"}},
 		},
-		"resize_keyboard":    true,
-		"one_time_keyboard":  false,
+		"resize_keyboard":   true,
+		"one_time_keyboard": false,
 	}
 }

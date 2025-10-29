@@ -14,15 +14,21 @@ func CancelForm(t *template.Template) http.HandlerFunc {
 		code := r.URL.Query().Get("code")
 
 		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		if _, err := view.ParseFiles("templates/pages/parents/cancel.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
+			http.Error(w, err.Error(), 500)
+			return
 		}
 
 		if code == "" {
 			if err := view.ExecuteTemplate(w, "parents/cancel.tmpl", map[string]any{
 				"Title": "Cancel Registration", "Err": "Missing code.",
-			}); err != nil { http.Error(w, err.Error(), 500) }
+			}); err != nil {
+				http.Error(w, err.Error(), 500)
+			}
 			return
 		}
 
@@ -30,7 +36,9 @@ func CancelForm(t *template.Template) http.HandlerFunc {
 		if err := db.Conn().Where("code = ?", code).First(&reg).Error; err != nil {
 			if err := view.ExecuteTemplate(w, "parents/cancel.tmpl", map[string]any{
 				"Title": "Cancel Registration", "Err": "Code not found.",
-			}); err != nil { http.Error(w, err.Error(), 500) }
+			}); err != nil {
+				http.Error(w, err.Error(), 500)
+			}
 			return
 		}
 		var child models.Child
@@ -45,27 +53,42 @@ func CancelForm(t *template.Template) http.HandlerFunc {
 			"Class":  class.Name,
 			"Date":   fmtDate(class.Date),
 			"Status": reg.Status,
-		}); err != nil { http.Error(w, err.Error(), 500) }
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 
 func CancelSubmit(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil { http.Error(w, err.Error(), 400); return }
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
 		code := r.FormValue("code")
-		if code == "" { http.Error(w, "missing code", 400); return }
+		if code == "" {
+			http.Error(w, "missing code", 400)
+			return
+		}
 
 		if err := svc.CancelByCode(code); err != nil {
-			http.Error(w, "unable to cancel: "+err.Error(), 500); return
+			http.Error(w, "unable to cancel: "+err.Error(), 500)
+			return
 		}
 
 		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		if _, err := view.ParseFiles("templates/pages/parents/cancel_done.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
+			http.Error(w, err.Error(), 500)
+			return
 		}
 		if err := view.ExecuteTemplate(w, "parents/cancel_done.tmpl", map[string]any{
 			"Title": "Canceled", "Code": code,
-		}); err != nil { http.Error(w, err.Error(), 500) }
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }

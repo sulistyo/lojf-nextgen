@@ -11,7 +11,7 @@ import (
 )
 
 const parentPhoneCookie = "parent_phone"
-const parentNameCookie  = "parent_name"
+const parentNameCookie = "parent_name"
 
 func setParentCookies(w http.ResponseWriter, phone, name string) {
 	phone = svc.NormPhone(phone)
@@ -49,7 +49,9 @@ func readParentCookies(r *http.Request) (phone, name string) {
 }
 
 func refreshParentCookiesIfNeeded(w http.ResponseWriter, r *http.Request, phone string) {
-	if phone == "" { return }
+	if phone == "" {
+		return
+	}
 	var p models.Parent
 	if err := db.Conn().Where("phone = ?", phone).First(&p).Error; err == nil {
 		setParentCookies(w, p.Phone, p.Name)
@@ -59,9 +61,11 @@ func refreshParentCookiesIfNeeded(w http.ResponseWriter, r *http.Request, phone 
 func AccountLogout(w http.ResponseWriter, r *http.Request) {
 	// Clear cookies
 	http.SetCookie(w, &http.Cookie{Name: parentPhoneCookie, Value: "", Path: "/", Expires: time.Unix(0, 0)})
-	http.SetCookie(w, &http.Cookie{Name: parentNameCookie,  Value: "", Path: "/", Expires: time.Unix(0, 0)})
+	http.SetCookie(w, &http.Cookie{Name: parentNameCookie, Value: "", Path: "/", Expires: time.Unix(0, 0)})
 	next := r.URL.Query().Get("next")
-	if next == "" { next = "/account" }
+	if next == "" {
+		next = "/account"
+	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 func RequireParent(next http.Handler) http.Handler {

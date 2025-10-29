@@ -29,7 +29,9 @@ func (c *Client) send(method string, payload any) error {
 	req, _ := http.NewRequest("POST", c.apiURL+"/"+method, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpc.Do(req)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("telegram %s: %s", method, resp.Status)
@@ -39,8 +41,8 @@ func (c *Client) send(method string, payload any) error {
 
 func (c *Client) SendMessage(chatID int64, text string, replyMarkup any) error {
 	data := map[string]any{
-		"chat_id": chatID,
-		"text":    text,
+		"chat_id":    chatID,
+		"text":       text,
 		"parse_mode": "HTML",
 	}
 	if replyMarkup != nil {
@@ -54,7 +56,11 @@ func (c *Client) SendPhoto(chatID int64, photoURL, caption string, replyMarkup a
 		"chat_id": chatID,
 		"photo":   photoURL, // we’ll use your /qr/{code}.png
 	}
-	if caption != "" { data["caption"] = caption }
-	if replyMarkup != nil { data["reply_markup"] = replyMarkup }
+	if caption != "" {
+		data["caption"] = caption
+	}
+	if replyMarkup != nil {
+		data["reply_markup"] = replyMarkup
+	}
 	return c.send("sendPhoto", data)
 }

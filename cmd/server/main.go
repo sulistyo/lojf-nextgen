@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/lojf/nextgen/internal/bot"
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/web"
-	"github.com/lojf/nextgen/internal/bot"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 	if err := db.Init(); err != nil {
 		log.Fatalf("db init: %v", err)
 	}
-	bot.StartReminderLoop() 
+	bot.StartReminderLoop()
 
 	r := web.Router()
 

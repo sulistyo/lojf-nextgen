@@ -1,20 +1,22 @@
 package bot
 
 type Update struct {
-	UpdateID int64 `json:"update_id"`
-	Message  *Message `json:"message,omitempty"`
+	UpdateID int64          `json:"update_id"`
+	Message  *Message       `json:"message,omitempty"`
 	Callback *CallbackQuery `json:"callback_query,omitempty"`
 }
 
 type Message struct {
-	MessageID int64 `json:"message_id"`
-	From      *User `json:"from"`
-	Chat      *Chat `json:"chat"`
-	Text      string `json:"text"`
+	MessageID int64    `json:"message_id"`
+	From      *User    `json:"from"`
+	Chat      *Chat    `json:"chat"`
+	Text      string   `json:"text"`
 	Contact   *Contact `json:"contact,omitempty"`
 }
 
-type Chat struct{ ID int64 `json:"id"` }
+type Chat struct {
+	ID int64 `json:"id"`
+}
 type User struct {
 	ID        int64  `json:"id"`
 	Username  string `json:"username"`
@@ -26,8 +28,8 @@ type Contact struct {
 }
 
 type CallbackQuery struct {
-	ID      string  `json:"id"`
-	From    *User   `json:"from"`
+	ID      string   `json:"id"`
+	From    *User    `json:"from"`
 	Message *Message `json:"message"`
-	Data    string  `json:"data"`
+	Data    string   `json:"data"`
 }

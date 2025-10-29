@@ -2,18 +2,36 @@ package services
 
 import (
 	"errors"
-	"strings"
-	"unicode"
-
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+	"regexp"
+	"strings"
+	"unicode"
+)
+
+var (
+	reLetters = regexp.MustCompile(`[A-Za-z]`)
+	// Only allow digits, spaces, +, -, (, )
+	reAllowed = regexp.MustCompile(`^[0-9+\-\s\(\)]+$`)
+	// E.164-ish: + followed by 8..15 digits (no leading 0 after +)
+	reE164 = regexp.MustCompile(`^\+[1-9][0-9]{7,14}$`)
 )
 
 // NormPhone normalizes phone numbers to +E.164-like formats used in the app.
 // Rules: strip spaces/dashes/parens; 00.. -> +..; 62.. -> +62..; 0.. -> +62..; ensure leading +
 func NormPhone(p string) string {
 	s := strings.TrimSpace(p)
-	if s == "" { return "" }
+
+	if s == "" {
+		return ""
+	}
+	if reLetters.MatchString(s) {
+		return ""
+	}
+	if !reAllowed.MatchString(s) {
+		return ""
+	}
+
 	// strip separators
 	repl := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "", "\n", "", "\r", "")
 	s = repl.Replace(s)
@@ -57,8 +75,8 @@ func altPhones(p string) []string {
 		out = append(out, raw)
 	}
 	if strings.HasPrefix(n, "+62") && len(n) > 3 {
-		out = append(out, "0"+n[3:])   // 0811...
-		out = append(out, "62"+n[1:])  // 62811...
+		out = append(out, "0"+n[3:])  // 0811...
+		out = append(out, "62"+n[1:]) // 62811...
 	}
 	if strings.HasPrefix(n, "0") && len(n) > 1 {
 		out = append(out, "+62"+n[1:]) // +62811...

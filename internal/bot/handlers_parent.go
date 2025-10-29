@@ -2,12 +2,12 @@ package bot
 
 import (
 	"fmt"
-	"net/url"
-	"time"
-	"strings"
-	"unicode"
 	"github.com/lojf/nextgen/internal/db"
 	"github.com/lojf/nextgen/internal/models"
+	"net/url"
+	"strings"
+	"time"
+	"unicode"
 )
 
 func onlyDigits(s string) string {
@@ -54,14 +54,15 @@ func (d *Dispatcher) handleLinkCode(tu *models.TelegramUser, chat int64, code st
 
 func (d *Dispatcher) handleMy(chat int64, tu *models.TelegramUser) {
 	if tu.ParentID == nil {
-		_ = d.c.SendMessage(chat, "Not linked yet. Share your phone or use /link CODE.", nil); return
+		_ = d.c.SendMessage(chat, "Not linked yet. Share your phone or use /link CODE.", nil)
+		return
 	}
 	type row struct {
-		Code string
+		Code   string
 		Status string
-		Child string
-		Class string
-		Date time.Time
+		Child  string
+		Class  string
+		Date   time.Time
 	}
 	var rows []row
 	db.Conn().Table("registrations r").
@@ -72,8 +73,9 @@ func (d *Dispatcher) handleMy(chat int64, tu *models.TelegramUser) {
 		Order("classes.date asc, r.created_at asc").
 		Scan(&rows)
 
-	if len(rows)==0 {
-		_ = d.c.SendMessage(chat, "No upcoming registrations.", nil); return
+	if len(rows) == 0 {
+		_ = d.c.SendMessage(chat, "No upcoming registrations.", nil)
+		return
 	}
 
 	var b strings.Builder
@@ -93,36 +95,39 @@ func (d *Dispatcher) handleMy(chat int64, tu *models.TelegramUser) {
 
 func (d *Dispatcher) handleRegisterStart(chat int64, tu *models.TelegramUser) {
 	if tu.ParentID == nil {
-		_ = d.c.SendMessage(chat, "Link first (share phone or /link CODE).", nil); return
+		_ = d.c.SendMessage(chat, "Link first (share phone or /link CODE).", nil)
+		return
 	}
 	// For MVP, deep-link to your site flow:
 	_ = d.c.SendMessage(chat, "Open the registration page:", map[string]any{
 		"inline_keyboard": [][]map[string]any{
-			{{"text":"Open Register","url":"https://nextgen.lojf.id/register?k=1"}},
+			{{"text": "Open Register", "url": "https://nextgen.lojf.id/register?k=1"}},
 		},
 	})
 }
 
 func (d *Dispatcher) handleAddChildStart(chat int64, tu *models.TelegramUser) {
 	if tu.ParentID == nil {
-		_ = d.c.SendMessage(chat, "Link first (share phone or /link CODE).", nil); return
+		_ = d.c.SendMessage(chat, "Link first (share phone or /link CODE).", nil)
+		return
 	}
 	_ = d.c.SendMessage(chat, "Add child on the website:", map[string]any{
 		"inline_keyboard": [][]map[string]any{
-			{{"text":"Open My Account","url":"https://nextgen.lojf.id/account/profile"}},
+			{{"text": "Open My Account", "url": "https://nextgen.lojf.id/account/profile"}},
 		},
 	})
 }
 
 func (d *Dispatcher) handleAccount(chat int64, tu *models.TelegramUser) {
 	if tu.ParentID == nil {
-		_ = d.c.SendMessage(chat, "Not linked. Share phone or /link CODE.", nil); return
+		_ = d.c.SendMessage(chat, "Not linked. Share phone or /link CODE.", nil)
+		return
 	}
 	u := "https://nextgen.lojf.id/my/list"
 	_ = d.c.SendMessage(chat, "Open your account & registrations:", map[string]any{
 		"inline_keyboard": [][]map[string]any{
-			{{"text":"My Registrations","url":u}},
-			{{"text":"Account Profile","url":"https://nextgen.lojf.id/account/profile"}},
+			{{"text": "My Registrations", "url": u}},
+			{{"text": "Account Profile", "url": "https://nextgen.lojf.id/account/profile"}},
 		},
 	})
 }
@@ -130,7 +135,9 @@ func (d *Dispatcher) handleAccount(chat int64, tu *models.TelegramUser) {
 // Public helpers for other packages
 func NotifyPromotion(parentID uint, childName, className, dateStr, code string) {
 	var tu models.TelegramUser
-	if err := db.Conn().Where("parent_id = ? AND deliverable = 1", parentID).First(&tu).Error; err != nil { return }
+	if err := db.Conn().Where("parent_id = ? AND deliverable = 1", parentID).First(&tu).Error; err != nil {
+		return
+	}
 	c := NewClient()
 	msg := fmt.Sprintf("🎉 <b>Promoted from Waitlist</b>\n%s — %s — %s\nCode: <code>%s</code>", childName, className, dateStr, code)
 	_ = c.SendMessage(tu.ChatID, msg, nil)

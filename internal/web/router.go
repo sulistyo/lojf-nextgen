@@ -26,7 +26,7 @@ func Router() http.Handler {
 	r.Get("/healthz", handlers.Health)
 	r.Post("/tg/webhook", handlers.TelegramWebhook)
 	r.Get("/switch-number", handlers.SwitchNumber)
-	
+
 	// --- Parent registration: phone-first flow ---
 	r.Get("/register", handlers.RegisterPhoneForm(tmpl))
 	r.Post("/register", handlers.RegisterPhoneSubmit)
@@ -40,6 +40,10 @@ func Router() http.Handler {
 	// Class selection (continues the flow)
 	r.Get("/register/classes", handlers.SelectClassForm(tmpl))
 	r.Post("/register/classes", handlers.SelectClassSubmit(tmpl))
+
+	// Confirmation page with custom questions
+	r.Get("/register/classes/confirm", handlers.SelectClassConfirmForm(tmpl))
+	r.Post("/register/classes/confirm", handlers.SelectClassConfirmSubmit(tmpl))
 
 	// Parent self-service: cancel + “My registrations”
 	r.Get("/cancel", handlers.CancelForm(tmpl))
@@ -60,12 +64,18 @@ func Router() http.Handler {
 	r.With(handlers.RequireParent).Post("/account/children/delete", handlers.AccountDeleteChild)
 
 	r.With(handlers.RequireParent).Post("/account/linkcode", handlers.AccountGenerateLinkCode)
-	r.With(handlers.RequireParent).Post("/account/unlink_telegram", handlers.AccountUnlinkTelegram) 
+	r.With(handlers.RequireParent).Post("/account/unlink_telegram", handlers.AccountUnlinkTelegram)
 
-	// QR and Check-in
+	// QR image
 	r.Get("/qr/{code}.png", handlers.QR)
-	r.Get("/checkin", handlers.CheckinForm(tmpl))
-	r.Post("/checkin", handlers.CheckinConfirm(tmpl))
+
+	// --- Admin-guarded alias for QR scans that still hit /checkin ---
+	// This makes /checkin behave the same as /admin/checkin, with admin auth required.
+	r.Group(func(ad chi.Router) {
+		ad.Use(handlers.RequireAdmin)
+		ad.Get("/checkin", handlers.CheckinForm(tmpl))
+		ad.Post("/checkin", handlers.CheckinConfirm(tmpl))
+	})
 
 	// --- Admin routes (with login + guard) ---
 	r.Route("/admin", func(ar chi.Router) {
@@ -77,6 +87,10 @@ func Router() http.Handler {
 		// Guarded admin pages
 		ar.Group(func(ag chi.Router) {
 			ag.Use(handlers.RequireAdmin)
+
+			// Canonical admin check-in
+			ag.Get("/checkin", handlers.CheckinForm(tmpl))
+			ag.Post("/checkin", handlers.CheckinConfirm(tmpl))
 
 			// Classes
 			ag.Get("/classes", handlers.AdminClasses(tmpl))
@@ -95,7 +109,7 @@ func Router() http.Handler {
 			ag.Post("/registrations/{id}/cancel", handlers.AdminRegCancel)
 			ag.Post("/registrations/{id}/delete", handlers.AdminRegDelete)
 
-			// Parents roster (moved here)
+			// Parents
 			ag.Get("/parents", handlers.AdminParentsList(tmpl))
 			ag.Get("/parents/{id}", handlers.AdminParentShowForm(tmpl))
 			ag.Post("/parents/{id}", handlers.AdminParentUpdate)
@@ -103,21 +117,33 @@ func Router() http.Handler {
 			ag.Post("/parents/{id}/children/delete", handlers.AdminChildDelete)
 			ag.Post("/parents/{id}/delete", handlers.AdminParentDelete)
 
+			// Templates
+			ag.Get("/templates",               handlers.AdminTemplatesIndex(tmpl))
+			ag.Get("/templates/new",           handlers.AdminTemplatesNewForm(tmpl))
+			ag.Post("/templates",              handlers.AdminTemplatesCreate)
+			ag.Get("/templates/{id}/edit",     handlers.AdminTemplatesEditForm(tmpl))
+			ag.Post("/templates/{id}",         handlers.AdminTemplatesUpdate)
+			ag.Post("/templates/{id}/delete",  handlers.AdminTemplatesDelete)
+
+			// JSON for prefill
+			ag.Get("/templates/{id}.json",     handlers.AdminTemplatesShowJSON)
 		})
 	})
 
 	return r
 }
+
 func mustParseTemplates(baseDir string) *template.Template {
 	loc, err := time.LoadLocation("Asia/Jakarta")
-	if err != nil { loc = time.FixedZone("WIB", 7*3600) }
+	if err != nil {
+		loc = time.FixedZone("WIB", 7*3600)
+	}
 
 	funcs := template.FuncMap{
 		"year":     func() string { return time.Now().Format("2006") },
 		"jdate":    func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
 		"jisodate": func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
-		// NEW: 12 January 2012
-		"jlong":    func(t time.Time) string { return t.In(loc).Format("02 January 2006") },
+		"jlong":    func(t time.Time) string { return t.In(loc).Format("02 January 2006") }, // 12 January 2012
 	}
 
 	p := template.New("").Funcs(funcs)
@@ -125,5 +151,3 @@ func mustParseTemplates(baseDir string) *template.Template {
 	p = template.Must(p.ParseGlob(filepath.Join(baseDir, "partials", "*.tmpl")))
 	return p
 }
-
-

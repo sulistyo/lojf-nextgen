@@ -18,9 +18,22 @@ func Init() error {
 		return err
 	}
 	// AutoMigrate core tables
-	if err := conn.AutoMigrate(&models.Parent{}, &models.Child{}, &models.Class{}, &models.Registration{}); err != nil {
-		return err
+
+	if err := conn.AutoMigrate(
+		&models.Parent{},
+		&models.Child{},
+		&models.Class{},
+		&models.Registration{},
+		&models.TelegramUser{},       
+		&models.LinkCode{},           
+		&models.ClassQuestion{}, 
+		&models.ClassTemplate{}, 
+		&models.ClassTemplateQuestion{},
+		&models.RegistrationAnswer{}, 
+	); err != nil {
+		log.Fatalf("auto-migrate failed: %v", err)
 	}
+
 	log.Println("database ready (sqlite)")
 	return nil
 }

@@ -3,12 +3,12 @@ package handlers
 import (
 	"crypto/rand"
 	"fmt"
+	"github.com/lojf/nextgen/internal/db"
+	"github.com/lojf/nextgen/internal/models"
+	"log"
 	"net/http"
 	"strings"
 	"time"
-	"log"
-	"github.com/lojf/nextgen/internal/db"
-	"github.com/lojf/nextgen/internal/models"
 )
 
 // generate 6-digit code using crypto/rand
@@ -45,7 +45,7 @@ func AccountGenerateLinkCode(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt: time.Now().Add(10 * time.Minute),
 		}
 		if err := db.Conn().Create(&lc).Error; err != nil {
-			log.Printf("linkcode create error: %v", err) 
+			log.Printf("linkcode create error: %v", err)
 			// if unique collision, retry; otherwise bubble up
 			if !strings.Contains(strings.ToLower(err.Error()), "unique") &&
 				!strings.Contains(strings.ToLower(err.Error()), "constraint") {

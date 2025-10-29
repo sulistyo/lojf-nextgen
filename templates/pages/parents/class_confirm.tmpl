@@ -1,0 +1,44 @@
+{{define "content"}}
+<h1 class="text-xl font-semibold mb-2">{{.Title}}</h1>
+{{if .Err}}<div class="mb-3 p-3 rounded-xl bg-red-50 text-red-700 text-sm">{{.Err}}</div>{{end}}
+
+<div class="mb-4 text-sm">
+  <div><b>Child:</b> {{.Child.Name}}</div>
+  <div><b>Class:</b> {{.Class.Name}}</div>
+  <div><b>Date:</b>  {{.Class.Date.Format "Mon, 02 Jan 2006 15:04"}}</div>
+</div>
+
+<form method="POST" action="/register/classes/confirm" class="space-y-3">
+  <input type="hidden" name="child_id" value="{{.ChildID}}">
+  <input type="hidden" name="class_id" value="{{.ClassID}}">
+
+  {{range .Qs}}
+    <div class="p-3 border rounded-xl">
+      <label class="block font-medium mb-1">
+        {{.Label}}{{if .Required}} <span class="text-red-600">*</span>{{end}}
+      </label>
+      {{if eq .Kind "text"}}
+        <input class="border rounded-xl px-3 py-2 w-full" name="q_{{.ID}}" {{if .Required}}required{{end}}>
+      {{else}}
+      {{/* before ranging choices, capture outer fields */}}
+      {{$qid := .ID}} {{$req := .Required}}
+      <div class="space-y-1">
+        {{range .Choices}}
+          <label class="flex items-center gap-2">
+            <input type="radio" name="q_{{$qid}}" value="{{.}}" {{if $req}}required{{end}}>
+            <span>{{.}}</span>
+          </label>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  {{end}}
+
+  <div class="mt-4">
+    <button class="px-4 py-2 rounded-xl border underline">Confirm Registration</button>
+  </div>
+</form>
+
+{{end}}
+
+{{define "parents/class_confirm.tmpl"}}{{template "base" .}}{{end}}

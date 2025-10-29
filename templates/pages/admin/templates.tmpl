@@ -1,0 +1,38 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Templates</h1>
+{{template "admin_nav" .}}
+{{template "flash" .}}
+
+<div class="mb-4">
+  <a class="px-4 py-2 rounded-xl bg-gray-900 text-white" href="/admin/templates/new">+ New Template</a>
+</div>
+
+{{if .Templates}}
+<table class="w-full text-sm border rounded-2xl bg-white">
+  <thead>
+    <tr class="bg-gray-50 text-left">
+      <th class="p-3">Name</th>
+      <th class="p-3">Questions</th>
+      <th class="p-3"></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Templates}}
+    <tr class="border-t">
+      <td class="p-3 align-top">{{.Name}}</td>
+      <td class="p-3 align-top">{{len .Questions}}</td>
+      <td class="p-3 text-right">
+        <a class="underline" href="/admin/templates/{{.ID}}/edit">Edit</a>
+        <form method="POST" action="/admin/templates/{{.ID}}/delete" class="inline" onsubmit="return confirm('Delete template?');">
+          <button class="ml-3 text-red-600 underline" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="text-gray-600">No templates yet.</p>
+{{end}}
+{{end}}
+{{define "admin/templates.tmpl"}}{{template "base" .}}{{end}}

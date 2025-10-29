@@ -61,9 +61,13 @@ func CheckinForm(t *template.Template) http.HandlerFunc {
 		}
 
 		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		if _, err := view.ParseFiles("templates/pages/admin/checkin.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
+			http.Error(w, err.Error(), 500)
+			return
 		}
 		if err := view.ExecuteTemplate(w, "admin/checkin.tmpl", checkinVM{
 			Title: "Admin • Check-in",
@@ -71,7 +75,8 @@ func CheckinForm(t *template.Template) http.HandlerFunc {
 			Reg:   row,
 			Flash: MakeFlash(r, errMsg, ""),
 		}); err != nil {
-			http.Error(w, err.Error(), 500); return
+			http.Error(w, err.Error(), 500)
+			return
 		}
 	}
 }
