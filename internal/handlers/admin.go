@@ -11,6 +11,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// put this near the top of the file or in a shared helpers file
+func unescapeIfQuoted(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 && ((s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'')) {
+		if u, err := strconv.Unquote(s); err == nil { return u }
+	}
+	// Soft-try when raw contains escapes
+	if strings.ContainsAny(s, `\n\t\"`) {
+		if u, err := strconv.Unquote(`"` + s + `"`); err == nil { return u }
+	}
+	return s
+}
+
 func AdminClasses(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var classes []models.Class
@@ -38,7 +51,6 @@ func AdminClasses(t *template.Template) http.HandlerFunc {
 
 func AdminNewClass(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Load templates (with questions ordered by position)
 		var tpls []models.ClassTemplate
 		_ = db.Conn().
 			Preload("Questions", func(tx *gorm.DB) *gorm.DB {
@@ -47,6 +59,21 @@ func AdminNewClass(t *template.Template) http.HandlerFunc {
 			Order("LOWER(name) asc").
 			Find(&tpls).Error
 
+		// SANITIZE IN-MEMORY so UI shows clean strings
+		for i := range tpls {
+			tpls[i].Name        = unescapeIfQuoted(tpls[i].Name)
+			tpls[i].Description = unescapeIfQuoted(tpls[i].Description)
+			for j := range tpls[i].Questions {
+				q := &tpls[i].Questions[j]
+				q.Label = unescapeIfQuoted(q.Label)
+				if strings.ToLower(q.Kind) == "radio" {
+					q.Options = normalizeChoicesComma(q.Options) // “A,B,C”
+				} else {
+					q.Options = ""
+				}
+			}
+		}
+
 		view, err := t.Clone()
 		if err != nil { http.Error(w, err.Error(), 500); return }
 		if _, err := view.ParseFiles("templates/pages/admin/classes_new.tmpl"); err != nil {
@@ -54,7 +81,7 @@ func AdminNewClass(t *template.Template) http.HandlerFunc {
 		}
 		data := map[string]any{
 			"Title": "Admin • New Class",
-			"Tpls":  tpls, // <-- pass templates to the page
+			"Tpls":  tpls,
 		}
 		if err := view.ExecuteTemplate(w, "admin/classes_new.tmpl", data); err != nil {
 			http.Error(w, err.Error(), 500); return

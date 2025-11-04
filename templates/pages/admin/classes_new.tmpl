@@ -71,15 +71,15 @@
   const TPLS = {
     {{- range .Tpls }}
     {{.ID}}: {
-      name: {{printf "%q" .Name}},
-      description: {{printf "%q" .Description}},
+      name: {{.Name}},
+      description: {{.Description}},
       questions: [
         {{- range .Questions }}
         {
-          label: {{printf "%q" .Label}},
-          kind:  {{printf "%q" .Kind}},       // "text" | "radio"
+          label: {{.Label}},
+          kind:  {{.Kind}},       // "text" | "radio"
           required: {{if .Required}}true{{else}}false{{end}},
-          options: {{printf "%q" .Options}},  // comma-separated for "radio"
+          options: {{.Options}},  // comma-separated for "radio"
           position: {{.Position}},
         },
         {{- end }}
