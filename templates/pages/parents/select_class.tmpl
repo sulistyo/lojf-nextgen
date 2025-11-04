@@ -13,11 +13,11 @@
         <div class="flex items-start gap-3">
           <input type="radio" name="class_id" value="{{.ID}}" {{if not .CanRegister}}disabled{{end}} required>
           <div class="flex-1">
-            <div class="font-semibold">{{.Name}}</div>
+            <div class="font-semibold">{{nl2br .Name}}</div>
             <div class="text-sm text-gray-600">{{.DateStr}}</div>
 
             {{if .Description}}
-              <div class="mt-2 text-sm text-gray-700 whitespace-pre-line">{{.Description}}</div>
+              <div class="mt-2 text-sm text-gray-700 whitespace-pre-line">{{nl2br .Description}}</div>
             {{end}}
 
             <div class="mt-2 flex flex-wrap items-center gap-2">

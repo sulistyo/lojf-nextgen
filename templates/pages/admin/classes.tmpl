@@ -20,7 +20,7 @@
       {{range .Classes}}
       <tr class="border-t">
         <td class="py-2 px-3 whitespace-nowrap">{{jdate .Date}}</td>
-        <td class="py-2 px-3">{{.Name}}</td>
+        <td class="py-2 px-3">{{nl2br .Name}}</td>
         <td class="py-2 px-3">{{.Capacity}}</td>
         <td class="py-2 px-3 space-x-3 whitespace-nowrap">
           <a class="text-sm underline" href="/admin/roster?class_id={{.ID}}">Roster</a>

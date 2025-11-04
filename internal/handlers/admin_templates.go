@@ -130,7 +130,7 @@ func AdminTemplatesUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update template fields
+	// Update template header
 	tpl.Name = strings.TrimSpace(r.FormValue("name"))
 	tpl.Description = strings.TrimSpace(r.FormValue("description"))
 	if err := db.Conn().Save(&tpl).Error; err != nil {
@@ -138,74 +138,104 @@ func AdminTemplatesUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parallel arrays for questions
+	// ---- Read rows from the form (names must match the edit form) ----
 	qIDs     := r.Form["q_id[]"]
 	qLabels  := r.Form["q_label[]"]
 	qKinds   := r.Form["q_kind[]"]     // "text" | "radio"
-	qChoices := r.Form["q_choices[]"]  // comma-separated for radio
+	qChoices := r.Form["q_choices[]"]  // comma-separated (or text area)
 	qPos     := r.Form["q_position[]"]
-	qDel     := r.Form["q_delete[]"]   // "1" if delete
+	qDel     := r.Form["q_delete[]"]   // "1" when delete
 
-	for i := range qLabels {
-		idStr   := at(qIDs, i)
-		label   := strings.TrimSpace(at(qLabels, i))
-		kind    := strings.TrimSpace(at(qKinds, i))
-		choices := normalizeChoicesComma(at(qChoices, i))
-		posStr  := strings.TrimSpace(at(qPos, i))
-		del     := at(qDel, i) == "1"
-		req     := r.FormValue("q_required_"+strconv.Itoa(i)) == "on"
-
-		position := 0
-		if posStr != "" {
-			if n, err := strconv.Atoi(posStr); err == nil {
-				position = n
-			}
+	// required checkboxes are named q_required_{i} = "on"
+	reqAt := func(i int) bool {
+		return r.FormValue("q_required_"+strconv.Itoa(i)) == "on"
+	}
+	at := func(ss []string, i int) string {
+		if i < 0 || i >= len(ss) { return "" }
+		return ss[i]
+	}
+	normalizeChoicesComma := func(s string) string {
+		s = strings.TrimSpace(s)
+		if s == "" { return "" }
+		// accept newline-separated too; store as comma-separated
+		s = strings.ReplaceAll(s, "\r\n", "\n")
+		s = strings.ReplaceAll(s, "\r", "\n")
+		s = strings.ReplaceAll(s, "\n", ",")
+		parts := strings.Split(s, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" { out = append(out, p) }
 		}
-		// ignore totally empty rows
-		if idStr == "" && !del && label == "" && kind == "" && choices == "" {
-			continue
-		}
+		return strings.Join(out, ",")
+	}
 
-		if idStr != "" {
-			// update / delete existing
-			qid, _ := strconv.Atoi(idStr)
-			var q models.ClassQuestion
-			if err := db.Conn().First(&q, qid).Error; err == nil && q.ID > 0 {
-				if del {
-					_ = db.Conn().Delete(&q).Error
-					continue
-				}
-				if kind != "radio" {
-					choices = ""
-				}
-				q.Label     = label
-				q.Kind      = kind
-				q.Options   = choices
-				q.Required  = req
-				q.Position  = position
-				q.ClassID   = nil
-				q.TemplateID = &tpl.ID
-				_ = db.Conn().Save(&q).Error
+	// Use a tx for consistency
+	if err := db.Conn().Transaction(func(tx *gorm.DB) error {
+		for i := range qLabels {
+			idStr   := at(qIDs, i)
+			label   := strings.TrimSpace(at(qLabels, i))
+			kind    := strings.TrimSpace(at(qKinds, i)) // "text" | "radio"
+			choices := normalizeChoicesComma(at(qChoices, i))
+			posStr  := strings.TrimSpace(at(qPos, i))
+			del     := at(qDel, i) == "1"
+			req     := reqAt(i)
+
+			if kind != "radio" {
+				choices = "" // only radio holds options
 			}
-		} else {
-			// new question
-			if del || label == "" {
+
+			position := i
+			if posStr != "" {
+				if n, err := strconv.Atoi(posStr); err == nil {
+					position = n
+				}
+			}
+
+			// Completely empty + not delete → skip
+			if idStr == "" && !del && label == "" && kind == "" && choices == "" {
 				continue
 			}
-			if kind != "radio" {
-				choices = ""
+
+			if idStr == "" {
+				// NEW question for this template
+				if del || label == "" {
+					continue
+				}
+				q := models.ClassTemplateQuestion{
+					TemplateID: tpl.ID,
+					Label:      label,
+					Kind:       kind,
+					Options:    choices,
+					Required:   req,
+					Position:   position,
+				}
+				if err := tx.Create(&q).Error; err != nil { return err }
+				continue
 			}
-			q := models.ClassQuestion{
-				Label:      label,
-				Kind:       kind,
-				Options:    choices,
-				Required:   req,
-				Position:   position,
-				ClassID:    nil,
-				TemplateID: &tpl.ID,
+
+			// UPDATE / DELETE existing question in template_questions
+			qid, _ := strconv.Atoi(idStr)
+			var q models.ClassTemplateQuestion
+			if err := tx.First(&q, qid).Error; err != nil {
+				// ID not found in template_questions: ignore gracefully
+				continue
 			}
-			_ = db.Conn().Create(&q).Error
+			if del {
+				if err := tx.Delete(&q).Error; err != nil { return err }
+				continue
+			}
+			q.Label    = label
+			q.Kind     = kind
+			q.Options  = choices
+			q.Required = req
+			q.Position = position
+			if err := tx.Save(&q).Error; err != nil { return err }
 		}
+		return nil
+	}); err != nil {
+		http.Error(w, "db error (questions)", http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, "/admin/templates/"+idStr+"/edit?ok=saved", http.StatusSeeOther)

@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"time"
-
+	"strings"
+	"html"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
@@ -144,6 +145,38 @@ func mustParseTemplates(baseDir string) *template.Template {
 		"jdate":    func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
 		"jisodate": func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
 		"jlong":    func(t time.Time) string { return t.In(loc).Format("02 January 2006") }, // 12 January 2012
+		"fmtDate":     func(t time.Time) string { return t.In(loc).Format("02-01-2006") },
+		"fmtDateTime": func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006 15:04") },
+        "unescape": func(s string) string {
+            s = strings.ReplaceAll(s, "\r\n", "\n")    // normalize
+            s = strings.ReplaceAll(s, "\\r\\n", "\n")  // literal backslash-encoded
+            s = strings.ReplaceAll(s, "\\n", "\n")
+            s = strings.ReplaceAll(s, "\\t", "    ")
+            return s
+        },
+		"nl2br": func(s string) template.HTML {
+			if s == "" { return "" }
+
+			  // 1) Remove accidental outer quotes (e.g. "....")
+			  ss := strings.TrimSpace(s)
+			  if len(ss) >= 2 {
+			    if (ss[0] == '"'  && ss[len(ss)-1] == '"') ||
+			       (ss[0] == '\'' && ss[len(ss)-1] == '\'') {
+			      ss = ss[1:len(ss)-1]
+			    }
+			  }
+			  // 2) Turn &#34; / &quot; back into actual quotes (and other entities)
+			  ss = html.UnescapeString(ss)
+			  // 3) Normalize newlines
+	            ss = strings.ReplaceAll(ss, "\r\n", "\n")    // normalize
+	            ss = strings.ReplaceAll(ss, "\\r\\n", "\n")  // literal backslash-encoded
+	            ss = strings.ReplaceAll(ss, "\\n", "\n")
+	            ss = strings.ReplaceAll(ss, "\\t", "    ")
+			  // 4) Escape once, then nl -> <br>
+			  esc := html.EscapeString(ss)
+			  esc = strings.ReplaceAll(esc, "\n", "<br>")
+			  return template.HTML(esc)	    
+		},        
 	}
 
 	p := template.New("").Funcs(funcs)

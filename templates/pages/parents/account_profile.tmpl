@@ -90,7 +90,7 @@
     <p class="text-sm text-gray-700 mb-2">
       Linked to
       {{if .TG.Username}}<span class="font-mono">@{{.TG.Username}}</span>{{else}}<strong>{{.TG.FirstName}}</strong>{{end}}
-      {{if .TG.LinkedAt}} since {{.TG.LinkedAt}}{{end}}
+      {{if .TG.LinkedAt}} since {{fmtDateTime .TG.LinkedAt}}{{end}}
     </p>
     <form method="POST" action="/account/unlink_telegram" onsubmit="return confirm('Unlink Telegram from this account?')">
       <button class="px-3 py-2 rounded-xl border underline text-red-700">Unlink Telegram</button>

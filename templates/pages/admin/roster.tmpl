@@ -17,7 +17,7 @@
     <select name="class_id" class="w-full rounded-xl border p-2">
       <option value="">All</option>
       {{range .Classes}}
-        <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Filters.ClassID}}selected{{end}}>{{.Name}} — {{.Date}}</option>
+        <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Filters.ClassID}}selected{{end}}>{{fmtDate .Date}} :: {{nl2br .Name}}</option>
       {{end}}
     </select>
   </div>
@@ -58,7 +58,7 @@
       <tr class="border-t">
 
           <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
-          <td class="py-2 px-3 whitespace-nowrap">{{.ClassName}}</td>
+          <td class="py-2 px-3">{{nl2br .ClassName}}</td>
           <td class="align-top py-2">
             <div class="font-medium">{{.ChildName}}</div>
             <div class="text-xs text-gray-600">

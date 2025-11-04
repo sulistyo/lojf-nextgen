@@ -105,10 +105,11 @@ func RegisterOnboardForm(t *template.Template) http.HandlerFunc {
 func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 
-	phone := svc.NormPhone(r.FormValue("phone"))
+	phone      := svc.NormPhone(r.FormValue("phone"))
 	parentName := strings.TrimSpace(r.FormValue("parent_name"))
-	childName := strings.TrimSpace(r.FormValue("child_name"))
-	dob := strings.TrimSpace(r.FormValue("child_dob"))
+	childName  := strings.TrimSpace(r.FormValue("child_name"))
+	dob        := strings.TrimSpace(r.FormValue("child_dob"))
+	childGender := strings.TrimSpace(r.FormValue("child_gender")) // NEW (required)
 
 	// Optional email
 	emailRaw := r.FormValue("email")
@@ -118,8 +119,16 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if phone == "" || parentName == "" || childName == "" || dob == "" {
+	// Basic required checks (gender now required)
+	if phone == "" || parentName == "" || childName == "" || dob == "" || childGender == "" {
 		http.Error(w, "missing fields", http.StatusBadRequest)
+		return
+	}
+	// Whitelist gender
+	switch childGender {
+	case "male", "female": // male, female
+	default:
+		http.Error(w, "invalid gender", http.StatusBadRequest)
 		return
 	}
 
@@ -133,27 +142,16 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 	var parent models.Parent
 	if err := db.Conn().Where("phone = ?", phone).First(&parent).Error; err == nil && parent.ID > 0 {
 		changed := false
-		if parent.Name != parentName {
-			parent.Name = parentName
-			changed = true
-		}
-		if parent.Phone != phone {
-			parent.Phone = phone
-			changed = true
-		}
-		if parent.Email != email { // email may be ""
-			parent.Email = email
-			changed = true
-		}
+		if parent.Name != parentName { parent.Name = parentName; changed = true }
+		if parent.Phone != phone     { parent.Phone = phone;     changed = true }
+		if parent.Email != email     { parent.Email = email;     changed = true }
 		if changed {
 			if err := db.Conn().Save(&parent).Error; err != nil {
 				le := strings.ToLower(err.Error())
 				if strings.Contains(le, "unique") && strings.Contains(le, "email") {
-					http.Error(w, "email already used by another account", http.StatusConflict)
-					return
+					http.Error(w, "email already used by another account", http.StatusConflict); return
 				}
-				http.Error(w, "save parent failed", http.StatusInternalServerError)
-				return
+				http.Error(w, "save parent failed", http.StatusInternalServerError); return
 			}
 		}
 	} else {
@@ -161,16 +159,19 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 		if err := db.Conn().Create(&parent).Error; err != nil {
 			le := strings.ToLower(err.Error())
 			if strings.Contains(le, "unique") && strings.Contains(le, "email") {
-				http.Error(w, "email already used by another account", http.StatusConflict)
-				return
+				http.Error(w, "email already used by another account", http.StatusConflict); return
 			}
-			http.Error(w, "save parent failed", http.StatusInternalServerError)
-			return
+			http.Error(w, "save parent failed", http.StatusInternalServerError); return
 		}
 	}
 
-	// Create child
-	child := models.Child{Name: childName, BirthDate: d, ParentID: parent.ID}
+	// Create first child with Gender (NEW)
+	child := models.Child{
+		Name:      childName,
+		BirthDate: d,
+		ParentID:  parent.ID,
+		Gender:    childGender, // NEW
+	}
 	if err := db.Conn().Create(&child).Error; err != nil {
 		http.Error(w, "save child failed", http.StatusInternalServerError)
 		return

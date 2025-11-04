@@ -17,7 +17,7 @@ func init() {
 
 // Date-only friendly string, e.g. "Mon, 02 Jan 2006"
 func fmtDate(d time.Time) string {
-	return d.In(tzJakarta).Format("Mon, 02 Jan 2006")
+	return d.In(tzJakarta).Format("02 Jan 2006")
 }
 
 // ISO date string, e.g. "2006-01-02"
