@@ -80,10 +80,12 @@ func AdminUpdateClass(w http.ResponseWriter, r *http.Request) {
 
 	// Compose datetime for class date/time (Jakarta or UTC? We keep as parsed local then store as time with no TZ consideration like before)
 	dtStr := date
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+
 	if strings.TrimSpace(timeStr) != "" {
 		dtStr = date + " " + timeStr
 	}
-	dt, err := time.Parse("2006-01-02 15:04", dtStr)
+	dt, err := time.ParseInLocation("2006-01-02 15:04", dtStr, loc)
 	if err != nil {
 		dt, err = time.Parse("2006-01-02", date)
 		if err != nil {
@@ -101,7 +103,6 @@ func AdminUpdateClass(w http.ResponseWriter, r *http.Request) {
 	// Parse optional opens-at in Asia/Jakarta; store as UTC
 	var opensAt *time.Time
 	if strings.TrimSpace(openDate) != "" {
-		loc, _ := time.LoadLocation("Asia/Jakarta")
 		layout := "2006-01-02"
 		combined := openDate
 		if strings.TrimSpace(openTime) != "" {

@@ -27,7 +27,7 @@ func unescapeIfQuoted(s string) string {
 func AdminClasses(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var classes []models.Class
-		if err := db.Conn().Order("date asc").Find(&classes).Error; err != nil {
+		if err := db.Conn().Order("date desc").Find(&classes).Error; err != nil {
 			http.Error(w, "db error", 500)
 			return
 		}
@@ -106,7 +106,8 @@ func AdminCreateClass(w http.ResponseWriter, r *http.Request) {
 	if dateStr == "" || name == "" || capStr == "" {
 		http.Error(w, "missing fields", http.StatusBadRequest); return
 	}
-	d, err := time.Parse("2006-01-02", dateStr)
+	locJkt, _ := time.LoadLocation("Asia/Jakarta")
+	d, err := time.ParseInLocation("2006-01-02", dateStr,locJkt)
 	if err != nil { http.Error(w, "invalid date", http.StatusBadRequest); return }
 
 	capacity, err := strconv.Atoi(capStr)

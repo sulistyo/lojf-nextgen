@@ -1,28 +1,35 @@
 {{define "content"}}
-<h1 class="text-2xl font-bold mb-4">Check-in</h1>
+<h1 class="text-2xl font-bold mb-4">
+  {{if .Reg}}Check-in for {{.Reg.ClassName}}{{else}}Check-in{{end}}
+</h1>
 
 {{template "flash" .}}
 
-<form method="GET" action="/checkin" class="flex gap-2 mb-3">
+<form method="GET" action="/admin/checkin" class="flex gap-2 mb-3">
   <input name="code" value="{{.Code}}" placeholder="Scan or type code"
          class="border rounded-xl px-3 py-2 w-64" autofocus />
   <button type="submit" class="px-3 py-2 rounded-xl border underline">Search</button>
 </form>
 
-{{if .Reg}}
+{{with .Reg}}
   <div class="mb-4 text-sm">
-    <div><b>Child:</b> {{.Reg.ChildName}}</div>
-    <div><b>Class:</b> {{.Reg.ClassName}}</div>
-    <div><b>Date:</b>  {{.Reg.DateStr}}</div>
-    <div><b>Status:</b> {{.Reg.Status}}</div>
-    {{if .Reg.CheckInAt}}<div><b>Checked in at:</b> {{.Reg.CheckInAt}}</div>{{end}}
+    <div><b>Child:</b> {{.ChildName}}</div>
+    <div><b>Class:</b> {{.ClassName}}</div>
+    <div><b>Date:</b>  {{.DateStr}}</div>
+    <div><b>Status:</b>
+      {{if .CheckInAt}}
+        checked in at {{.CheckInAt.Format "15:04"}}
+      {{else}}
+        {{.Status}}
+      {{end}}
+    </div>
   </div>
 
-  <form method="POST" action="/checkin" class="mt-2">
-    <input type="hidden" name="code" value="{{.Reg.Code}}" />
+  <form method="POST" action="/admin/checkin" class="mt-2">
+    <input type="hidden" name="code" value="{{.Code}}" />
     <button
-      {{if or (ne .Reg.Status "confirmed") .Reg.CheckInAt}}disabled{{end}}
-      class="px-3 py-2 rounded-xl border underline {{if or (ne .Reg.Status "confirmed") .Reg.CheckInAt}}opacity-50 cursor-not-allowed{{end}}">
+      {{if or (ne .Status "confirmed") .CheckInAt}}disabled{{end}}
+      class="px-3 py-2 rounded-xl border underline {{if or (ne .Status "confirmed") .CheckInAt}}opacity-50 cursor-not-allowed{{end}}">
       Check-in now
     </button>
   </form>

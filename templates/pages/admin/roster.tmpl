@@ -28,13 +28,30 @@
       <option value="confirmed" {{if eq .Filters.Status "confirmed"}}selected{{end}}>Confirmed</option>
       <option value="waitlisted" {{if eq .Filters.Status "waitlisted"}}selected{{end}}>Waitlisted</option>
       <option value="checked-in" {{if eq .Filters.Status "checked-in"}}selected{{end}}>Checked-in</option>
+      <option value="canceled" {{if eq .Filters.Status "canceled"}}selected{{end}}>Canceled</option>
     </select>
   </div>
   <div class="flex gap-2 items-end">
     <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Filter</button>
     <a class="px-3 py-2 rounded-xl border"
-       href="/admin/roster.csv?from={{.Filters.From}}&to={{.Filters.To}}&class_id={{.Filters.ClassID}}&status={{.Filters.Status}}">Export CSV</a>
+       href="/admin/roster.csv?from={{.Filters.From}}&to={{.Filters.To}}&class_id={{.Filters.ClassID}}&status={{.Filters.Status}}&q={{.Filters.Q}}">Export CSV</a>
   </div>
+</form>
+
+<form class="mb-4 flex flex-wrap gap-2 items-end" method="GET" action="/admin/roster">
+  <input type="hidden" name="from" value="{{.Filters.From}}">
+  <input type="hidden" name="to" value="{{.Filters.To}}">
+  <input type="hidden" name="class_id" value="{{.Filters.ClassID}}">
+  <input type="hidden" name="status" value="{{.Filters.Status}}">
+
+  <label class="text-sm">
+    <span class="block mb-1">Search</span>
+    <input name="q" value="{{.Filters.Q}}" placeholder="Child / Parent / Phone / Class / Code / Answers"
+           class="border rounded-xl px-3 py-2 w-80">
+  </label>
+
+  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Apply</button>
+  <a class="px-3 py-2 rounded-xl border" href="/admin/roster">Clear</a>
 </form>
 
 <div class="bg-white border rounded-2xl overflow-x-auto">
@@ -46,64 +63,69 @@
         <th class="py-2 px-3">Class</th>
         <th class="py-2 px-3">Child</th>
         <th class="text-left px-3 py-2">Answers</th>
-        <th class="py-2 px-3">Parent</th>  
-        <th class="py-2 px-3">Code</th>    
+        <th class="py-2 px-3">Parent</th>
+        <th class="py-2 px-3">Code</th>
         <th class="py-2 px-3">Status</th>
-        <th class="py-2 px-3">Check-in</th>
         <th class="py-2 px-3">Actions</th>
       </tr>
-    </thead>    
+    </thead>
     <tbody>
       {{range .Rows}}
       <tr class="border-t">
-
-          <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
-          <td class="py-2 px-3">{{nl2br .ClassName}}</td>
-          <td class="align-top py-2">
-            <div class="font-medium">{{.ChildName}}</div>
-            <div class="text-xs text-gray-600">
-              {{if .Gender}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{.Gender}}</span>{{end}}
-              {{if .BirthDate}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{fmtDate .BirthDate}}</span>{{end}}
-            </div>
-            {{/* existing custom-answers badges remain below if you added them */}}
-          </td>
-          <td class="align-top px-3 py-2 text-sm">
-          {{with index $root.Answers .ID}}
-           {{range $i, $s := .}}{{if $i}}, {{end}}{{ $s }}{{end}}
-          {{end}}
-          </td>
+        <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
+        <td class="py-2 px-3">{{nl2br .ClassName}}</td>
+        <td class="align-top py-2">
+          <div class="font-medium">{{.ChildName}}</div>
+          <div class="text-xs text-gray-600">
+            {{if .Gender}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{.Gender}}</span>{{end}}
+            {{if .BirthDate}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{fmtDate .BirthDate}}</span>{{end}}
+          </div>
         </td>
-          <td class="py-2 px-3">
-            
-            <!-- (optional) link to parent detail -->
-            <a class="underline ml-1" href="/admin/parents/{{.ParentID}}">{{.ParentName}}</a>
-          </td>
-          <td class="py-2 px-3 whitespace-nowrap">
-            <span class="font-mono">{{.Code}}</span>
-            <a class="inline-block align-middle ml-2" href="/qr/{{.Code}}.png" target="_blank" title="Show QR">
-              <!-- small QR icon (inline SVG) -->
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="opacity:.85">
-                <path d="M2 2h4v4H2V2zm1 1v2h2V3H3zM10 2h4v4h-4V2zm1 1v2h2V3h-2zM2 10h4v4H2v-4zm1 1v2h2v-2H3zM10 9h2v2h-2V9zm3 0h1v1h1v1h-2V9zm-3 3h1v1h-1v-1zm2 0h3v3h-3v-3z"/>
-              </svg>
-            </a>
-          </td>
+        <td class="align-top px-3 py-2 text-sm">
+          {{with index $root.Answers .ID}}
+            {{range $i, $s := .}}{{if $i}}, {{end}}{{ $s }}{{end}}
+          {{end}}
+        </td>
+        <td class="py-2 px-3">
+          <a class="underline" href="/admin/parents/{{.ParentID}}">{{.ParentName}}</a>
+          <div class="text-xs text-gray-600">{{.ParentPhone}}</div>
+        </td>
+        <td class="py-2 px-3 whitespace-nowrap">
+          <span class="font-mono">{{.Code}}</span>
+          <a class="inline-block align-middle ml-2" href="/qr/{{.Code}}.png" target="_blank" title="Show QR">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="opacity:.85">
+              <path d="M2 2h4v4H2V2zm1 1v2h2V3H3zM10 2h4v4h-4V2zm1 1v2h2V3h-2zM2 10h4v4H2v-4zm1 1v2h2v-2H3zM10 9h2v2h-2V9zm3 0h1v1h1v1h-2V9zm-3 3h1v1h-1v-1zm2 0h3v3h-3v-3z"/>
+            </svg>
+          </a>
+        </td>
+        <td class="py-2 px-3">
+          {{/* Combine status + check-in time here */}}
+          {{if .CheckInStr}}
+            checked-in at {{.CheckInStr}}
+          {{else if eq .Status "waitlisted"}}
+            Waitlist (#{{.WaitlistRank}})
+          {{else}}
+            {{.Status}}
+          {{end}}
+        </td>
 
-          <td class="py-2 px-3">
-            {{if eq .Status "waitlisted"}}Waitlist (#{{.WaitlistRank}}){{else}}{{.Status}}{{end}}
-          </td>
-          <td class="py-2 px-3 whitespace-nowrap">{{.CheckInStr}}</td>
-          <td class="py-2 px-3 whitespace-nowrap space-x-2">
+        <td class="py-2 px-3 whitespace-nowrap space-x-2">
+          {{/* Show Check-in ONLY for confirmed and not yet checked-in */}}
+          {{if and (eq .Status "confirmed") (eq .CheckInStr "")}}
             <form method="POST" action="/admin/registrations/{{.ID}}/checkin" style="display:inline">
-              <button class="text-xs underline" {{if eq .Status "waitlisted"}}disabled style="opacity:.4; text-decoration:none"{{end}}>Check-in</button>
+              <button class="text-xs underline">Check-in</button>
             </form>
-            <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline">
-              <button class="text-xs underline">Cancel</button>
-            </form>
-            <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this registration?')">
-              <button class="text-xs underline">Delete</button>
-            </form>
-          </td>
-        </tr>
+          {{end}}
+
+          <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline">
+            <button class="text-xs underline">Cancel</button>
+          </form>
+
+          <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this registration?')">
+            <button class="text-xs underline">Delete</button>
+          </form>
+        </td>
+      </tr>
       {{end}}
     </tbody>
   </table>

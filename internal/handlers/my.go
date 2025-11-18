@@ -78,7 +78,11 @@ func MyList(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		now := time.Now().Add(-2 * time.Hour)
+		// Start of *today* in Asia/Jakarta, compare against UTC in DB
+		loc, _ := time.LoadLocation("Asia/Jakarta")
+		nowJak := time.Now().In(loc)
+		startJak := time.Date(nowJak.Year(), nowJak.Month(), nowJak.Day(), 0, 0, 0, 0, loc)
+		startUTC := startJak.UTC()
 
 		type row struct {
 			Code      string
@@ -94,7 +98,7 @@ func MyList(t *template.Template) http.HandlerFunc {
 			        children.name as child_name`).
 			Joins("JOIN classes ON classes.id = registrations.class_id").
 			Joins("JOIN children ON children.id = registrations.child_id").
-			Where("registrations.parent_id = ? AND classes.date >= ?", parent.ID, now).
+			Where("registrations.parent_id = ? AND classes.date >= ?", parent.ID, startUTC).
 			Order("classes.date asc, children.name asc").
 			Scan(&rows)
 
@@ -110,6 +114,9 @@ func MyList(t *template.Template) http.HandlerFunc {
 			})
 		}
 
+		// keep cookies fresh
+		setParentCookies(w, parent.Phone, parent.Name)
+
 		view, err := t.Clone()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -121,7 +128,7 @@ func MyList(t *template.Template) http.HandlerFunc {
 		}
 		if err := view.ExecuteTemplate(w, "parents/my_list.tmpl", map[string]any{
 			"Title":  "My Registrations",
-			"Phone":  phone,
+			"Phone":  parent.Phone,
 			"Rows":   out,
 			"Parent": parent,
 		}); err != nil {

@@ -59,7 +59,7 @@ func AdminCapacity(t *template.Template) http.HandlerFunc {
 		var classes []models.Class
 		if err := db.Conn().
 			Where("date BETWEEN ? AND ?", from, to).
-			Order("date asc, name asc").
+			Order("date desc, name asc").
 			Find(&classes).Error; err != nil {
 			http.Error(w, "db error", http.StatusInternalServerError)
 			return

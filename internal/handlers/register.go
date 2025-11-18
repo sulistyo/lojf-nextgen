@@ -333,20 +333,20 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 		Left           int
 		IsFull         bool
 		Description    string
-		SignupOpensAt  *time.Time // <-- renamed
-		OpensAtUnix    int64      // Jakarta seconds for client countdown
-		OpensInSeconds int64      // now→open (Jakarta)
+		SignupOpensAt  *time.Time
+		OpensAtUnix    int64
+		OpensInSeconds int64
 		CanRegister    bool
 	}
 	type classRow struct {
-		ID             uint
-		Name           string
-		Date           time.Time
-		Capacity       int
-		Confirmed      int64
-		Waitlisted     int64
-		Description    string
-		SignupOpensAt  *time.Time // <-- renamed
+		ID            uint
+		Name          string
+		Date          time.Time
+		Capacity      int
+		Confirmed     int64
+		Waitlisted    int64
+		Description   string
+		SignupOpensAt *time.Time
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -373,8 +373,12 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 			errStr = "Registration for this class is not open yet."
 		}
 
-		nowUTC := time.Now().UTC()
-		toUTC  := nowUTC.AddDate(0, 6, 0)
+		// ---- Time window: include ALL of “today” in Jakarta ----
+		locJKT, _ := time.LoadLocation("Asia/Jakarta")
+		nowJKT := time.Now().In(locJKT)
+		startOfTodayJKT := time.Date(nowJKT.Year(), nowJKT.Month(), nowJKT.Day(), 0, 0, 0, 0, locJKT)
+		fromUTC := startOfTodayJKT.UTC()         // start of today's date in Jakarta
+		toUTC   := nowJKT.AddDate(0, 6, 0).UTC() // +6 months
 
 		var rows []classRow
 		if err := db.Conn().
@@ -385,15 +389,12 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 				COALESCE(SUM(CASE WHEN r.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlisted
 			`).
 			Joins(`LEFT JOIN registrations r ON r.class_id = c.id AND r.status IN ('confirmed','waitlisted')`).
-			Where("c.date BETWEEN ? AND ?", nowUTC, toUTC).
+			Where("c.date BETWEEN ? AND ?", fromUTC, toUTC).
 			Group("c.id").
 			Order("c.date ASC").
 			Scan(&rows).Error; err != nil {
 			http.Error(w, "db error", http.StatusInternalServerError); return
 		}
-
-		locJakarta, _ := time.LoadLocation("Asia/Jakarta")
-		nowJkt := time.Now().In(locJakarta)
 
 		opts := make([]classOption, 0, len(rows))
 		for _, rr := range rows {
@@ -403,25 +404,25 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 			var opensAtUnix, opensIn int64
 			canRegister := true
 			if rr.SignupOpensAt != nil && !rr.SignupOpensAt.IsZero() {
-				opensJkt := rr.SignupOpensAt.In(locJakarta)
+				opensJkt := rr.SignupOpensAt.In(locJKT)
 				opensAtUnix = opensJkt.Unix()
-				if nowJkt.Before(opensJkt) {
+				if nowJKT.Before(opensJkt) {
 					canRegister = false
-					opensIn = int64(opensJkt.Sub(nowJkt).Seconds())
+					opensIn = int64(opensJkt.Sub(nowJKT).Seconds())
 				}
 			}
 
 			opts = append(opts, classOption{
 				ID:             rr.ID,
 				Name:           rr.Name,
-				DateStr:        fmtDate(rr.Date),
+				DateStr:        fmtDate(rr.Date), // your helper (Jakarta formatting)
 				Capacity:       rr.Capacity,
 				Confirmed:      int(rr.Confirmed),
 				Waitlisted:     int(rr.Waitlisted),
 				Left:           left,
 				IsFull:         left == 0,
 				Description:    rr.Description,
-				SignupOpensAt:  rr.SignupOpensAt, // keep if you want to show raw time later
+				SignupOpensAt:  rr.SignupOpensAt,
 				OpensAtUnix:    opensAtUnix,
 				OpensInSeconds: opensIn,
 				CanRegister:    canRegister,
@@ -440,6 +441,7 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 		})
 	}
 }
+
 
 
 func SelectClassSubmit(t *template.Template) http.HandlerFunc {
