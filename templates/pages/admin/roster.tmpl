@@ -54,26 +54,47 @@
   <a class="px-3 py-2 rounded-xl border" href="/admin/roster">Clear</a>
 </form>
 
+<div class="mb2 text-sm text-gray-600">
+  Showing {{len .Rows}} result(s)
+</div>
+
+<div class="mb-3 flex flex-wrap items-center gap-3">
+  <label class="text-sm">
+    <input id="rosterQuickFilter" placeholder="Type to filter rows..." class="border rounded-xl px-3 py-2 w-80">
+  </label>
+  <div class="text-sm text-gray-600">
+    Showing <span id="rosterShownCount">0</span> / <span id="rosterTotalCount">0</span>
+  </div>
+</div>
+
 <div class="bg-white border rounded-2xl overflow-x-auto">
   {{if .HasResult}}
-  <table class="w-full text-sm">
+  <table id="rosterTable" class="w-full text-sm">
     <thead>
       <tr class="text-left text-sm text-gray-600">
-        <th class="py-2 px-3">Date</th>
-        <th class="py-2 px-3">Class</th>
-        <th class="py-2 px-3">Child</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="0">Reg Date</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="1">Class</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="2">Child</th>
         <th class="text-left px-3 py-2">Answers</th>
-        <th class="py-2 px-3">Parent</th>
-        <th class="py-2 px-3">Code</th>
-        <th class="py-2 px-3">Status</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="4">Parent</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="5">Code</th>
+        <th class="py-2 px-3 cursor-pointer select-none" data-sort="6">Status</th>
         <th class="py-2 px-3">Actions</th>
       </tr>
     </thead>
-    <tbody>
+
+    <tbody id="rosterTbody">
       {{range .Rows}}
       <tr class="border-t">
-        <td class="py-2 px-3 whitespace-nowrap">{{.DateStr}}</td>
-        <td class="py-2 px-3">{{nl2br .ClassName}}</td>
+        {{/* IMPORTANT: data-ts used for correct date sorting */}}
+        <td class="py-2 px-3 whitespace-nowrap" data-ts="{{.CreatedAt.Unix}}">
+          {{fmtDateTime .CreatedAt}}
+        </td>
+
+        <td class="py-2 px-3" data-ts="{{.ClassDate.Unix}}">
+          {{.DateStr}} - {{nl2br .ClassName}}
+        </td>
+
         <td class="align-top py-2">
           <div class="font-medium">{{.ChildName}}</div>
           <div class="text-xs text-gray-600">
@@ -81,15 +102,18 @@
             {{if .BirthDate}}<span class="inline-block px-2 py-0.5 rounded bg-gray-100">{{fmtDate .BirthDate}}</span>{{end}}
           </div>
         </td>
+
         <td class="align-top px-3 py-2 text-sm">
           {{with index $root.Answers .ID}}
             {{range $i, $s := .}}{{if $i}}, {{end}}{{ $s }}{{end}}
           {{end}}
         </td>
+
         <td class="py-2 px-3">
           <a class="underline" href="/admin/parents/{{.ParentID}}">{{.ParentName}}</a>
           <div class="text-xs text-gray-600">{{.ParentPhone}}</div>
         </td>
+
         <td class="py-2 px-3 whitespace-nowrap">
           <span class="font-mono">{{.Code}}</span>
           <a class="inline-block align-middle ml-2" href="/qr/{{.Code}}.png" target="_blank" title="Show QR">
@@ -98,8 +122,8 @@
             </svg>
           </a>
         </td>
+
         <td class="py-2 px-3">
-          {{/* Combine status + check-in time here */}}
           {{if .CheckInStr}}
             checked-in at {{.CheckInStr}}
           {{else if eq .Status "waitlisted"}}
@@ -110,7 +134,6 @@
         </td>
 
         <td class="py-2 px-3 whitespace-nowrap space-x-2">
-          {{/* Show Check-in ONLY for confirmed and not yet checked-in */}}
           {{if and (eq .Status "confirmed") (eq .CheckInStr "")}}
             <form method="POST" action="/admin/registrations/{{.ID}}/checkin" style="display:inline">
               <button class="text-xs underline">Check-in</button>
@@ -134,4 +157,94 @@
   {{end}}
 </div>
 {{end}}
-{{define "admin/roster.tmpl"}}{{template "base" .}}{{end}}
+
+{{define "admin/roster.tmpl"}}{{template "base" .}}
+
+<script>
+(function () {
+  const input = document.getElementById('rosterQuickFilter');
+  const tbody = document.getElementById('rosterTbody');
+  const shownEl = document.getElementById('rosterShownCount');
+  const totalEl = document.getElementById('rosterTotalCount');
+
+  if (!input || !tbody) return;
+
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  totalEl.textContent = rows.length;
+
+  function updateCount() {
+    const shown = rows.filter(r => r.style.display !== 'none').length;
+    shownEl.textContent = shown;
+  }
+
+  function normalize(s){ return (s || '').toLowerCase().replace(/\s+/g,' ').trim(); }
+
+  input.addEventListener('input', () => {
+    const q = normalize(input.value);
+    rows.forEach(tr => {
+      const text = normalize(tr.innerText);
+      tr.style.display = (!q || text.includes(q)) ? '' : 'none';
+    });
+    updateCount();
+  });
+
+  updateCount();
+})();
+</script>
+
+<script>
+(function () {
+  const table = document.getElementById('rosterTable');
+  const tbody = document.getElementById('rosterTbody');
+  if (!table || !tbody) return;
+
+  const state = { col: null, asc: true };
+
+  function normalize(s){ return (s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+  function cmp(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
+
+  function getSortValue(tr, colIdx) {
+    const td = tr.children[colIdx];
+    if (!td) return { kind: 'text', v: '' };
+
+    const ts = td.getAttribute('data-ts');
+    if (ts !== null && ts !== '') {
+      const n = Number(ts);
+      if (Number.isFinite(n)) return { kind: 'num', v: n };
+    }
+
+    return { kind: 'text', v: normalize(td.innerText) };
+  }
+
+  function sortBy(colIdx) {
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+    const asc = (state.col === colIdx) ? !state.asc : true;
+    state.col = colIdx;
+    state.asc = asc;
+
+    rows.sort((ra, rb) => {
+      const a = getSortValue(ra, colIdx);
+      const b = getSortValue(rb, colIdx);
+
+      if (a.kind === 'num' && b.kind === 'num') {
+        return asc ? (a.v - b.v) : (b.v - a.v);
+      }
+
+      const c = cmp(a.v, b.v);
+      return asc ? c : -c;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+  }
+
+  table.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const colIdx = parseInt(th.getAttribute('data-sort'), 10);
+      if (!Number.isFinite(colIdx)) return;
+      sortBy(colIdx);
+    });
+  });
+})();
+</script>
+
+{{end}}

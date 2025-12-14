@@ -33,7 +33,7 @@
   <!-- Children list -->
   <div class="bg-white border rounded-2xl p-6">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold">Children</h2>
+      <h2 class="font-semibold">Children (please contact admin to remove a child)</h2>
       <a class="text-sm underline" href="/account/children/new?phone={{.Phone}}">Add child</a>
     </div>
     <div class="space-y-3">
@@ -63,11 +63,6 @@
               <div class="flex items-end gap-2">
                 <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Save</button>
               </div>
-            </form>
-            <form method="POST" action="/account/children/delete" class="mt-2">
-              <input type="hidden" name="id" value="{{.ID}}">
-              <input type="hidden" name="phone" value="{{$.Phone}}">
-              <button class="px-3 py-2 rounded-xl border" onclick="return confirm('Delete this child?')">Delete</button>
             </form>
           </div>
         {{end}}

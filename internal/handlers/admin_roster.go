@@ -33,7 +33,7 @@ type rosterRow struct {
 	ClassName string
 	ClassDate time.Time
 	DateStr   string
-
+	CreatedStr	string
 	CreatedAt    time.Time
 	WaitlistRank int
 }
@@ -91,181 +91,174 @@ func statusWeight(s string) int {
 
 // ---------- Admin Roster (HTML) ----------
 func AdminRoster(t *template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fFrom    := r.URL.Query().Get("from")
-		fTo      := r.URL.Query().Get("to")
-		fClassID := r.URL.Query().Get("class_id")
-		fStatus  := r.URL.Query().Get("status")
-		fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
+    return func(w http.ResponseWriter, r *http.Request) {
+        fFrom    := r.URL.Query().Get("from")
+        fTo      := r.URL.Query().Get("to")
+        fClassID := r.URL.Query().Get("class_id")
+        fStatus  := r.URL.Query().Get("status")
+        fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
 
-		// Future-only window (>= today, Jakarta)
-		loc, _ := time.LoadLocation("Asia/Jakarta")
-		todayJkt := time.Now().In(loc)
-		defaultFrom := time.Date(todayJkt.Year(), todayJkt.Month(), todayJkt.Day(), 0, 0, 0, 0, loc)
-		defaultTo   := defaultFrom.AddDate(0, 0, 300)
+        // Default window: last 30 days to +300 days
+        now := time.Now()
+        from := parseDate(fFrom, now.AddDate(0, 0, -7))
+        to   := parseDate(fTo,   now.AddDate(0, 0, 300))
 
-		from := parseDate(fFrom, defaultFrom)
-		if from.Before(defaultFrom) {
-			from = defaultFrom
+		if fFrom == "" {
+			fFrom = from.Format("2006-01-02")
 		}
-		to := parseDate(fTo, defaultTo)
+        var classes []models.Class
+        _ = db.Conn().Order("date asc").Find(&classes).Error
 
-		var classes []models.Class
-		_ = db.Conn().Order("date asc").Find(&classes).Error
+        q := db.Conn().Table("registrations").
+            Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
+                    registrations.parent_id as parent_id,
+                    children.name as child_name, children.birth_date as birth_date, children.gender as gender,
+                    classes.id as class_id, classes.name as class_name, classes.date as class_date,
+                    parents.name as parent_name, parents.phone as parent_phone`).
+            Joins("JOIN children ON children.id = registrations.child_id").
+            Joins("JOIN classes  ON classes.id  = registrations.class_id").
+            Joins("JOIN parents  ON parents.id  = registrations.parent_id").
+            Where("classes.date BETWEEN ? AND ?", from, to)
 
-		q := db.Conn().Table("registrations").
-			Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
-			        registrations.parent_id as parent_id,
-			        children.name as child_name,children.birth_date as birth_date,children.gender as gender,
-			        classes.id as class_id, classes.name as class_name, classes.date as class_date,
-			        parents.name as parent_name, parents.phone as parent_phone`).
-			Joins("JOIN children ON children.id = registrations.child_id").
-			Joins("JOIN classes  ON classes.id  = registrations.class_id").
-			Joins("JOIN parents  ON parents.id  = registrations.parent_id").
-			Where("classes.date >= ? AND classes.date <= ?", from, to)
+        if fClassID != "" {
+            if cid, err := strconv.Atoi(fClassID); err == nil && cid > 0 {
+                q = q.Where("classes.id = ?", cid)
+            }
+        }
 
-		if fClassID != "" {
-			if cid, err := strconv.Atoi(fClassID); err == nil && cid > 0 {
-				q = q.Where("classes.id = ?", cid)
-			}
-		}
-		if fStatus != "" {
-			switch fStatus {
-			case "confirmed", "waitlisted", "canceled":
-				q = q.Where("registrations.status = ?", fStatus)
-			case "checked-in":
-				q = q.Where("registrations.check_in_at IS NOT NULL")
-			}
-		}
+        if fStatus != "" {
+            switch fStatus {
+            case "confirmed":
+                // Only confirmed and NOT yet checked in
+                q = q.Where("registrations.status = ? AND registrations.check_in_at IS NULL", "confirmed")
+            case "waitlisted", "canceled":
+                q = q.Where("registrations.status = ?", fStatus)
+            case "checked-in":
+                // Only confirmed and already checked in
+                q = q.Where("registrations.status = ? AND registrations.check_in_at IS NOT NULL", "confirmed")
+            }
+        }
 
-		if fQ != "" {
-			like := "%" + strings.ToLower(fQ) + "%"
-			digits := onlyDigits(fQ)
-			digitsLike := "#no_digits#"
-			if digits != "" {
-				digitsLike = "%" + digits + "%"
-			}
-			where := `
-                LOWER(children.name) LIKE ? OR
-                LOWER(parents.name) LIKE ? OR
-                LOWER(classes.name) LIKE ? OR
-                LOWER(registrations.code) LIKE ? OR
+        if fQ != "" {
+            like := "%" + strings.ToLower(fQ) + "%"
+            digits := onlyDigits(fQ)
+            digitsLike := "#no_digits#"
+            if digits != "" {
+                digitsLike = "%" + digits + "%"
+            }
+            where := `
+                LOWER(children.name)       LIKE ? OR
+                LOWER(parents.name)        LIKE ? OR
+                LOWER(classes.name)        LIKE ? OR
+                LOWER(registrations.code)  LIKE ? OR
                 REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(parents.phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
             `
-			q = q.Where(where, like, like, like, like, digitsLike)
-		}
+            q = q.Where(where, like, like, like, like, digitsLike)
+        }
 
-		var rows []rosterRow
-		if err := q.Scan(&rows).Error; err != nil {
-			http.Error(w, "db error", http.StatusInternalServerError)
-			return
-		}
+        var rows []rosterRow
+        if err := q.Scan(&rows).Error; err != nil {
+            http.Error(w, "db error", http.StatusInternalServerError)
+            return
+        }
 
-		for i := range rows {
-			rows[i].DateStr = fmtDate(rows[i].ClassDate)
-			if rows[i].CheckInAt != nil {
-				rows[i].CheckInStr = rows[i].CheckInAt.Format("15:04")
-			}
-		}
+        for i := range rows {
+            rows[i].DateStr = fmtDate(rows[i].ClassDate)
+            if rows[i].CheckInAt != nil {
+                rows[i].CheckInStr = rows[i].CheckInAt.Format("15:04")
+            }
+        }
 
-		sort.Slice(rows, func(i, j int) bool {
-			if !rows[i].ClassDate.Equal(rows[j].ClassDate) {
-				return rows[i].ClassDate.Before(rows[j].ClassDate)
-			}
-			if rows[i].ClassName != rows[j].ClassName {
-				return rows[i].ClassName < rows[j].ClassName
-			}
-			if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
-				return rows[i].CreatedAt.Before(rows[j].CreatedAt)
-			}
-			return statusWeight(rows[i].Status) < statusWeight(rows[j].Status)
-		})
+        sort.Slice(rows, func(i, j int) bool {
+            if !rows[i].ClassDate.Equal(rows[j].ClassDate) {
+                return rows[i].ClassDate.After(rows[j].ClassDate)
+            }
+            if rows[i].ClassName != rows[j].ClassName {
+                return rows[i].ClassName < rows[j].ClassName
+            }
+            if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+                return rows[i].CreatedAt.After(rows[j].CreatedAt)
+            }
+            return statusWeight(rows[i].Status) < statusWeight(rows[j].Status)
+        })
 
-		ranks := map[uint]int{}
-		for i := range rows {
-			if rows[i].Status == "waitlisted" {
-				ranks[rows[i].ClassID]++
-				rows[i].WaitlistRank = ranks[rows[i].ClassID]
-			}
-		}
+        ranks := map[uint]int{}
+        for i := range rows {
+            if rows[i].Status == "waitlisted" {
+                ranks[rows[i].ClassID]++
+                rows[i].WaitlistRank = ranks[rows[i].ClassID]
+            }
+        }
 
-		answers := map[uint][]string{}
-		if len(rows) > 0 {
-			regIDs := make([]uint, 0, len(rows))
-			for _, rr := range rows {
-				regIDs = append(regIDs, rr.ID)
-			}
+        answers := map[uint][]string{}
+        if len(rows) > 0 {
+            regIDs := make([]uint, 0, len(rows))
+            for _, rr := range rows {
+                regIDs = append(regIDs, rr.ID)
+            }
 
-			type arow struct {
-				RegID    uint
-				Label    string
-				Answer   string
-				Position int
-			}
-			var ans []arow
-			if err := db.Conn().Table("registration_answers AS ra").
-				Select("ra.registration_id AS reg_id, cq.label, ra.answer, cq.position").
-				Joins("JOIN class_questions AS cq ON cq.id = ra.question_id").
-				Where("ra.registration_id IN ?", regIDs).
-				Order("ra.registration_id ASC, cq.position ASC, cq.id ASC").
-				Scan(&ans).Error; err == nil {
-				for _, a := range ans {
-					if strings.TrimSpace(a.Answer) == "" {
-						continue
-					}
-					answers[a.RegID] = append(answers[a.RegID], a.Label+": "+a.Answer)
-				}
-			}
-		}
+            type arow struct {
+                RegID    uint
+                Label    string
+                Answer   string
+                Position int
+            }
+            var ans []arow
+            if err := db.Conn().Table("registration_answers AS ra").
+                Select("ra.registration_id AS reg_id, cq.label, ra.answer, cq.position").
+                Joins("JOIN class_questions AS cq ON cq.id = ra.question_id").
+                Where("ra.registration_id IN ?", regIDs).
+                Order("ra.registration_id ASC, cq.position ASC, cq.id ASC").
+                Scan(&ans).Error; err == nil {
+                for _, a := range ans {
+                    if strings.TrimSpace(a.Answer) == "" {
+                        continue
+                    }
+                    answers[a.RegID] = append(answers[a.RegID], a.Label+": "+a.Answer)
+                }
+            }
+        }
 
-		vm := rosterPageVM{
-			Title:   "Admin • Roster",
-			Rows:    rows,
-			Classes: classes,
-			Filters: rosterFilters{
-				From:    fFrom,
-				To:      fTo,
-				ClassID: fClassID,
-				Status:  fStatus,
-				Q:       fQ,
-			},
-			HasResult: len(rows) > 0,
-			Answers:   answers,
-		}
+        vm := rosterPageVM{
+            Title:   "Admin • Roster",
+            Rows:    rows,
+            Classes: classes,
+            Filters: rosterFilters{
+                From:    fFrom,
+                To:      fTo,
+                ClassID: fClassID,
+                Status:  fStatus,
+                Q:       fQ,
+            },
+            HasResult: len(rows) > 0,
+            Answers:   answers,
+        }
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/admin/roster.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if err := view.ExecuteTemplate(w, "admin/roster.tmpl", vm); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-	}
+        view, err := t.Clone()
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+        if _, err := view.ParseFiles("templates/pages/admin/roster.tmpl"); err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+        if err := view.ExecuteTemplate(w, "admin/roster.tmpl", vm); err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+    }
 }
-
 func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
-	fFrom := r.URL.Query().Get("from")
-	fTo := r.URL.Query().Get("to")
+	fFrom    := r.URL.Query().Get("from")
+	fTo      := r.URL.Query().Get("to")
 	fClassID := r.URL.Query().Get("class_id")
-	fStatus := r.URL.Query().Get("status")
+	fStatus  := r.URL.Query().Get("status")
+	fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
 
-	// Future-only window (>= today, Jakarta)
-	loc, _ := time.LoadLocation("Asia/Jakarta")
-	todayJkt := time.Now().In(loc)
-	defaultFrom := time.Date(todayJkt.Year(), todayJkt.Month(), todayJkt.Day(), 0, 0, 0, 0, loc)
-	defaultTo := defaultFrom.AddDate(0, 0, 300)
-
-	from := parseDate(fFrom, defaultFrom)
-	if from.Before(defaultFrom) {
-		from = defaultFrom
-	}
-	to := parseDate(fTo, defaultTo)
+	now  := time.Now()
+	from := parseDate(fFrom, now.AddDate(0, 0, -7))
+	to   := parseDate(fTo,   now.AddDate(0, 0,  300)) // MATCH AdminRoster
 
 	type csvRow struct {
 		ID          uint
@@ -296,52 +289,59 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		Joins("JOIN children ON children.id = registrations.child_id").
 		Joins("JOIN classes  ON classes.id  = registrations.class_id").
 		Joins("JOIN parents  ON parents.id  = registrations.parent_id").
-		Where("classes.date >= ? AND classes.date <= ?", from, to)
+		Where("classes.date BETWEEN ? AND ?", from, to)
 
 	if fClassID != "" {
 		if cid, err := strconv.Atoi(fClassID); err == nil && cid > 0 {
 			q = q.Where("classes.id = ?", cid)
 		}
 	}
+
 	if fStatus != "" {
 		switch fStatus {
-		case "confirmed", "waitlisted", "canceled":
-			q = q.Where("registrations.status = ?", fStatus)
+		case "confirmed":
+			q = q.Where("registrations.status = 'confirmed' AND registrations.check_in_at IS NULL")
 		case "checked-in":
-			q = q.Where("registrations.check_in_at IS NOT NULL")
+			q = q.Where("registrations.status = 'confirmed' AND registrations.check_in_at IS NOT NULL")
+		case "waitlisted", "canceled":
+			q = q.Where("registrations.status = ?", fStatus)
 		}
 	}
-	qstr := strings.TrimSpace(r.URL.Query().Get("q"))
-	if qstr != "" {
-		like := "%" + strings.ToLower(qstr) + "%"
-		digits := onlyDigits(qstr)
+
+	if fQ != "" {
+		like := "%" + strings.ToLower(fQ) + "%"
+		digits := onlyDigits(fQ)
 		digitsLike := "#no_digits#"
 		if digits != "" {
 			digitsLike = "%" + digits + "%"
 		}
+
 		where := `
-	        LOWER(children.name) LIKE ? OR
-	        LOWER(parents.name) LIKE ? OR
-	        LOWER(classes.name) LIKE ? OR
-	        LOWER(registrations.code) LIKE ? OR
-	        REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(parents.phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
-	    `
-		q = q.Where(where, like, like, like, like, digitsLike)
+			LOWER(children.name) LIKE ? OR
+			LOWER(parents.name) LIKE ? OR
+			LOWER(classes.name) LIKE ? OR
+			LOWER(registrations.code) LIKE ? OR
+			LOWER(registrations.status) LIKE ? OR
+			REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(parents.phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
+		`
+		q = q.Where(where, like, like, like, like, like, digitsLike)
 	}
 
 	var rows []csvRow
-	if err := q.Scan(&rows).Error; err != nil {
+	if err := q.
+		Order("classes.date DESC, registrations.created_at DESC, registrations.id DESC").
+		Scan(&rows).Error; err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
 
+	// answers (same as your current CSV, unchanged)
 	answers := map[uint][]string{}
 	if len(rows) > 0 {
 		regIDs := make([]uint, 0, len(rows))
-		for _, r := range rows {
-			regIDs = append(regIDs, r.ID)
+		for _, rr := range rows {
+			regIDs = append(regIDs, rr.ID)
 		}
-
 		type arow struct {
 			RegID    uint
 			Label    string
@@ -372,12 +372,13 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 	defer cw.Flush()
 
 	_ = cw.Write([]string{
-		"Date", "Class", "Child", "Gender", "DOB",
+		"Registration Date", "Date", "Class", "Child", "Gender", "DOB",
 		"Parent", "Phone", "Code", "Status", "CheckedInAt", "Answers",
 	})
 
 	for _, row := range rows {
 		dateStr := row.ClassDate.Format("2006-01-02")
+		createdStr := row.CreatedAt.Format("2006-01-02 15:04")
 		checkStr := ""
 		if row.CheckInAt != nil {
 			checkStr = row.CheckInAt.Format("2006-01-02 15:04")
@@ -389,6 +390,7 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		ansStr := strings.Join(answers[row.ID], " | ")
 
 		_ = cw.Write([]string{
+			createdStr,
 			dateStr,
 			row.ClassName,
 			row.ChildName,
