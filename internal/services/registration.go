@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -65,53 +64,48 @@ func RecomputeClassTx(tx *gorm.DB, classID uint) error {
 	return err
 }
 
-// internal: recompute while collecting promotions (waitlisted -> confirmed)
+
 func recomputeClassTxCollect(tx *gorm.DB, classID uint) ([]models.Registration, error) {
-	var class models.Class
-	if err := tx.First(&class, classID).Error; err != nil {
-		return nil, err
-	}
+    var class models.Class
+    if err := tx.First(&class, classID).Error; err != nil {
+        return nil, err
+    }
 
-	// non-canceled regs
-	var regs []models.Registration
-	if err := tx.Where("class_id = ? AND status <> ?", classID, "canceled").
-		Find(&regs).Error; err != nil {
-		return nil, err
-	}
+    // 1. Load confirmed (FIFO preserved)
+    var confirmed []models.Registration
+    if err := tx.
+        Where("class_id = ? AND status = 'confirmed'", classID).
+        Order("created_at asc, id asc").
+        Find(&confirmed).Error; err != nil {
+        return nil, err
+    }
 
-	// order: checked-in first, then by CreatedAt asc
-	sort.Slice(regs, func(i, j int) bool {
-		ci := regs[i].CheckInAt != nil
-		cj := regs[j].CheckInAt != nil
-		if ci != cj {
-			return ci
-		}
-		return regs[i].CreatedAt.Before(regs[j].CreatedAt)
-	})
+    // 2. Load waitlist FIFO
+    var waitlist []models.Registration
+    if err := tx.
+        Where("class_id = ? AND status = 'waitlisted'", classID).
+        Order("created_at asc, id asc").
+        Find(&waitlist).Error; err != nil {
+        return nil, err
+    }
 
-	promoted := make([]models.Registration, 0)
-	confirmed := 0
-	for i := range regs {
-		want := "waitlisted"
-		if confirmed < class.Capacity {
-			want = "confirmed"
-		}
-		if regs[i].Status != want {
-			was := regs[i].Status
-			regs[i].Status = want
-			if err := tx.Save(&regs[i]).Error; err != nil {
-				return nil, err
-			}
-			if was == "waitlisted" && want == "confirmed" {
-				promoted = append(promoted, regs[i])
-			}
-		}
-		if want == "confirmed" {
-			confirmed++
-		}
-	}
-	return promoted, nil
+    promoted := []models.Registration{}
+
+    // 3. Promote oldest waitlisted until capacity filled
+    slots := class.Capacity - len(confirmed)
+    if slots > 0 {
+        for i := 0; i < slots && i < len(waitlist); i++ {
+            waitlist[i].Status = "confirmed"
+            if err := tx.Save(&waitlist[i]).Error; err != nil {
+                return nil, err
+            }
+            promoted = append(promoted, waitlist[i])
+        }
+    }
+
+    return promoted, nil
 }
+
 
 // internal: fire events for promotions
 func notifyPromotions(promoted []models.Registration) {

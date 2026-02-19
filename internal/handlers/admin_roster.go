@@ -181,7 +181,7 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
             }
             return statusWeight(rows[i].Status) < statusWeight(rows[j].Status)
         })
-
+/*
         ranks := map[uint]int{}
         for i := range rows {
             if rows[i].Status == "waitlisted" {
@@ -189,7 +189,53 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
                 rows[i].WaitlistRank = ranks[rows[i].ClassID]
             }
         }
+*/
 
+        // --- FIX WAITLIST RANK (FIFO) ---
+        // Current UI order is newest-first; rank must be oldest-first.
+        // Build a regID -> rank map using FIFO ordering inside each class.
+        wlRankByRegID := map[uint]int{}
+
+        if len(rows) > 0 {
+            // Collect class IDs present in the result
+            classIDs := make([]uint, 0, len(rows))
+            seen := map[uint]bool{}
+            for _, rr := range rows {
+                if !seen[rr.ClassID] {
+                    seen[rr.ClassID] = true
+                    classIDs = append(classIDs, rr.ClassID)
+                }
+            }
+
+            // Load ALL waitlisted regs for those classes in FIFO order
+            // NOTE: do NOT filter by date window here; classIDs already reflect it.
+            type wlRow struct {
+                ID      uint
+                ClassID uint
+            }
+            var wls []wlRow
+            _ = db.Conn().Table("registrations").
+                Select("id, class_id").
+                Where("class_id IN ? AND status = ?", classIDs, "waitlisted").
+                Order("class_id ASC, created_at ASC, id ASC").
+                Scan(&wls).Error
+
+            // Assign ranks per class in FIFO order
+            perClass := map[uint]int{}
+            for _, wr := range wls {
+                perClass[wr.ClassID]++
+                wlRankByRegID[wr.ID] = perClass[wr.ClassID]
+            }
+
+            // Attach rank back to the displayed rows
+            for i := range rows {
+                if rows[i].Status == "waitlisted" {
+                    rows[i].WaitlistRank = wlRankByRegID[rows[i].ID]
+                }
+            }
+        }
+
+        
         answers := map[uint][]string{}
         if len(rows) > 0 {
             regIDs := make([]uint, 0, len(rows))
