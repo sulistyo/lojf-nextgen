@@ -45,7 +45,7 @@ func Router() http.Handler {
 	r.Get("/register/classes/confirm", handlers.SelectClassConfirmForm(tmpl))
 	r.Post("/register/classes/confirm", handlers.SelectClassConfirmSubmit(tmpl))
 
-	// Parent self-service: cancel + “My registrations”
+	// Parent self-service: cancel + "My registrations"
 	r.Get("/cancel", handlers.CancelForm(tmpl))
 	r.Post("/cancel", handlers.CancelSubmit(tmpl))
 	r.Get("/my", handlers.MyPhoneForm(tmpl))

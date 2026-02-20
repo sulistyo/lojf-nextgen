@@ -31,21 +31,16 @@ func RequireAdmin(next http.Handler) http.Handler {
 
 // GET /admin/login
 func AdminLoginForm(t *template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/admin/login.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/login.tmpl"))
 
-		_ = view.ExecuteTemplate(w, "admin/login.tmpl", map[string]any{
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := view.ExecuteTemplate(w, "admin/login.tmpl", map[string]any{
 			"Title": "Admin • Login",
 			"Next":  r.URL.Query().Get("next"),
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 

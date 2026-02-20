@@ -47,12 +47,20 @@ func parseDateCapJKT(s string, def time.Time, loc *time.Location) time.Time {
 	return t
 }
 
+var capacityLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.FixedZone("WIB", 7*3600)
+	}
+	return loc
+}()
+
 func AdminCapacity(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/capacity.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		loc, _ := time.LoadLocation("Asia/Jakarta")
-		if loc == nil {
-			loc = time.FixedZone("WIB", 7*3600)
-		}
+		loc := capacityLoc
 
 		fromStr := r.URL.Query().Get("from")
 		toStr := r.URL.Query().Get("to")
@@ -80,26 +88,42 @@ func AdminCapacity(t *template.Template) http.HandlerFunc {
 			return
 		}
 
+		// Single aggregation query instead of 3 COUNT queries per class.
+		type capAgg struct {
+			ClassID   uint
+			Confirmed int64
+			Waitlisted int64
+			CheckedIn int64
+		}
+		var aggs []capAgg
+		if len(classes) > 0 {
+			classIDs := make([]uint, len(classes))
+			for i, c := range classes {
+				classIDs[i] = c.ID
+			}
+			_ = db.Conn().Table("registrations").
+				Select(`class_id,
+					SUM(CASE WHEN status = 'confirmed'  AND check_in_at IS NULL     THEN 1 ELSE 0 END) AS confirmed,
+					SUM(CASE WHEN status = 'waitlisted'                             THEN 1 ELSE 0 END) AS waitlisted,
+					SUM(CASE WHEN status = 'confirmed'  AND check_in_at IS NOT NULL THEN 1 ELSE 0 END) AS checked_in`).
+				Where("class_id IN ?", classIDs).
+				Group("class_id").
+				Scan(&aggs).Error
+		}
+		aggMap := make(map[uint]capAgg, len(aggs))
+		for _, a := range aggs {
+			aggMap[a.ClassID] = a
+		}
+
 		rows := make([]capacityRow, 0, len(classes))
 		var totalCap int
 		var totalConf, totalWait, totalIn int64
 
 		for _, c := range classes {
-			var confirmed int64
-			db.Conn().Model(&models.Registration{}).
-				Where("class_id = ? AND status = ? AND check_in_at IS NULL", c.ID, "confirmed").
-				Count(&confirmed)
-
-			var waitlisted int64
-			db.Conn().Model(&models.Registration{}).
-				Where("class_id = ? AND status = ?", c.ID, "waitlisted").
-				Count(&waitlisted)
-
-			var checkedIn int64
-			db.Conn().Model(&models.Registration{}).
-				Where("class_id = ? AND status = ? AND check_in_at IS NOT NULL", c.ID, "confirmed").
-				Count(&checkedIn)
-
+			agg := aggMap[c.ID]
+			confirmed := agg.Confirmed
+			waitlisted := agg.Waitlisted
+			checkedIn := agg.CheckedIn
 
 			avail := c.Capacity - int(confirmed) - int(checkedIn)
 			if avail < 0 {
@@ -107,10 +131,9 @@ func AdminCapacity(t *template.Template) http.HandlerFunc {
 			}
 			fill := 0
 			if c.Capacity > 0 {
-				fill = int(confirmed + checkedIn * 100 / int64(c.Capacity))
+				fill = int((confirmed+checkedIn)*100 / int64(c.Capacity))
 			}
 
-			// IMPORTANT: use the same formatting helper as roster so day/time doesn't drift with server TZ.
 			rows = append(rows, capacityRow{
 				ClassID:     c.ID,
 				ClassName:   c.Name,
@@ -142,15 +165,6 @@ func AdminCapacity(t *template.Template) http.HandlerFunc {
 		vm.Summary.Waitlisted = totalWait
 		vm.Summary.CheckedIn = totalIn
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/admin/capacity.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "admin/capacity.tmpl", vm); err != nil {
 			http.Error(w, err.Error(), 500)
 			return

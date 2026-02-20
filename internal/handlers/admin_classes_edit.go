@@ -16,6 +16,9 @@ import (
 
 // GET /admin/classes/{id}/edit
 func AdminEditClassForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/classes_edit.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
@@ -41,9 +44,7 @@ func AdminEditClassForm(t *template.Template) http.HandlerFunc {
 			Order("position asc, id asc").
 			Find(&qs).Error
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/classes_edit.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/classes_edit.tmpl", map[string]any{
+		if err := view.ExecuteTemplate(w, "admin/classes_edit.tmpl", map[string]any{
 			"Title":       "Admin • Edit Class",
 			"Class":       class,
 			"DateVal":     class.Date.Format("2006-01-02"),
@@ -51,7 +52,9 @@ func AdminEditClassForm(t *template.Template) http.HandlerFunc {
 			"OpenDateVal": openDateVal,
 			"OpenTimeVal": openTimeVal,
 			"Questions":   qs,
-		})
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 

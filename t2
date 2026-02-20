@@ -1,7 +1,0 @@
-sqlite3 /root/apps/lojf/nextgen.db << 'SQL'
-SELECT registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
-registrations.parent_id as parent_id,
-children.name as child_name,
-classes.id as class_id, classes.name as class_name, classes.date as class_date,
-parents.name as parent_name, parents.phone as parent_phone FROM `registrations` JOIN children ON children.id = registrations.child_id JOIN classes  ON classes.id  = registrations.class_id JOIN parents  ON parents.id  = registrations.parent_id WHERE (classes.date BETWEEN "2025-09-27 22:13:06.479" AND "2025-11-26 22:13:06.479") AND classes.id = 22;
-SQL

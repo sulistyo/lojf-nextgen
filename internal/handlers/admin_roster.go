@@ -91,6 +91,9 @@ func statusWeight(s string) int {
 
 // ---------- Admin Roster (HTML) ----------
 func AdminRoster(t *template.Template) http.HandlerFunc {
+    view := template.Must(t.Clone())
+    template.Must(view.ParseFiles("templates/pages/admin/roster.tmpl"))
+
     return func(w http.ResponseWriter, r *http.Request) {
         fFrom    := r.URL.Query().Get("from")
         fTo      := r.URL.Query().Get("to")
@@ -280,15 +283,6 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
             Answers:   answers,
         }
 
-        view, err := t.Clone()
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
-        if _, err := view.ParseFiles("templates/pages/admin/roster.tmpl"); err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
         if err := view.ExecuteTemplate(w, "admin/roster.tmpl", vm); err != nil {
             http.Error(w, err.Error(), 500)
             return

@@ -1,23 +1,26 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"github.com/lojf/nextgen/internal/db"
-	"github.com/lojf/nextgen/internal/models"
-	svc "github.com/lojf/nextgen/internal/services"
 	"html/template"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
-)
 
-func init() { rand.Seed(time.Now().UnixNano()) }
+	"github.com/lojf/nextgen/internal/db"
+	"github.com/lojf/nextgen/internal/models"
+	svc "github.com/lojf/nextgen/internal/services"
+)
 
 // ------------------- STEP 1: phone entry -------------------
 func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/register_phone.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Optional: allow clearing stale cookie: /register?clear=1
 		if r.URL.Query().Get("clear") == "1" {
@@ -51,8 +54,6 @@ func RegisterPhoneForm(t *template.Template) http.HandlerFunc {
 		}
 
 		// Render phone entry form (no cookie set yet)
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/register_phone.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/register_phone.tmpl", map[string]any{
 			"Title": "Register • Phone",
 			"Phone": phone, // just a prefill hint
@@ -86,14 +87,15 @@ func RegisterPhoneSubmit(w http.ResponseWriter, r *http.Request) {
 
 // ------------------- STEP 2a: first-time onboard -------------------
 func RegisterOnboardForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/onboard.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := r.URL.Query().Get("phone")
 		if phone == "" {
 			http.Error(w, "missing phone", 400)
 			return
 		}
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/onboard.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/onboard.tmpl", map[string]any{
 			"Title": "Register • Details",
 			"Phone": phone,
@@ -184,6 +186,9 @@ func RegisterOnboardSubmit(w http.ResponseWriter, r *http.Request) {
 // ------------------- STEP 2b: returning - choose child -------------------
 // RegisterKidsForm shows the children list for the parent (phone from query or cookie)
 func RegisterKidsForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/kids.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if strings.TrimSpace(phone) == "" {
@@ -213,8 +218,6 @@ func RegisterKidsForm(t *template.Template) http.HandlerFunc {
 		var kids []models.Child
 		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/kids.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/kids.tmpl", map[string]any{
 			"Title":  "Welcome back",
 			"Parent": parent,
@@ -269,6 +272,9 @@ func RegisterKidsSubmit(w http.ResponseWriter, r *http.Request) {
 
 // ------------------- STEP 2c: add a new child -------------------
 func RegisterNewChildForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/new_child.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" {
@@ -281,8 +287,6 @@ func RegisterNewChildForm(t *template.Template) http.HandlerFunc {
 			http.Error(w, "parent not found", 404)
 			return
 		}
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/new_child.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/new_child.tmpl", map[string]any{
 			"Title":  "Add Child",
 			"Parent": parent,
@@ -323,6 +327,9 @@ func RegisterNewChildSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func SelectClassForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/select_class.tmpl"))
+
 	type classOption struct {
 		ID             uint
 		Name           string
@@ -373,7 +380,7 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 			errStr = "Registration for this class is not open yet."
 		}
 
-		// ---- Time window: include ALL of “today” in Jakarta ----
+		// ---- Time window: include ALL of "today" in Jakarta ----
 		locJKT, _ := time.LoadLocation("Asia/Jakarta")
 		nowJKT := time.Now().In(locJKT)
 		startOfTodayJKT := time.Date(nowJKT.Year(), nowJKT.Month(), nowJKT.Day(), 0, 0, 0, 0, locJKT)
@@ -429,8 +436,6 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 			})
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/select_class.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/select_class.tmpl", map[string]any{
 			"Title":        "Select Class",
 			"Child":        child,
@@ -445,6 +450,9 @@ func SelectClassForm(t *template.Template) http.HandlerFunc {
 
 
 func SelectClassSubmit(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/registration_done.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 
@@ -539,8 +547,6 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 				Count(&rank).Error
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/registration_done.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/registration_done.tmpl", map[string]any{
 			"Title":     "Registration Result",
 			"ChildName": child.Name,
@@ -553,19 +559,14 @@ func SelectClassSubmit(t *template.Template) http.HandlerFunc {
 	}
 }
 
-
-
-// generateRegCode creates a unique REG-xxxxxx code.
+// generateRegCode creates a cryptographically random REG-xxxxxxxx code.
+// 32 bits of entropy makes collisions statistically impossible at this scale.
 func generateRegCode() string {
-	for i := 0; i < 20; i++ {
-		code := fmt.Sprintf("REG-%06d", rand.Intn(1000000))
-		var exists int64
-		_ = db.Conn().Model(&models.Registration{}).Where("code = ?", code).Count(&exists).Error
-		if exists == 0 {
-			return code
-		}
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
 	}
-	return ""
+	return fmt.Sprintf("REG-%08X", binary.BigEndian.Uint32(b[:]))
 }
 
 func normGender(s string) string {

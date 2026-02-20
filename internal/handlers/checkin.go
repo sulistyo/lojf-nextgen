@@ -28,6 +28,9 @@ type checkinVM struct {
 }
 
 func CheckinForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/checkin.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := strings.TrimSpace(r.URL.Query().Get("code"))
 
@@ -60,15 +63,6 @@ func CheckinForm(t *template.Template) http.HandlerFunc {
 			}
 		}
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/admin/checkin.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "admin/checkin.tmpl", checkinVM{
 			Title: "Admin • Check-in",
 			Code:  code,

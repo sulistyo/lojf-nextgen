@@ -25,6 +25,9 @@ type qVM struct {
 }
 
 func SelectClassConfirmForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/class_confirm.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		childID, _ := strconv.Atoi(r.URL.Query().Get("child_id"))
 		classID, _ := strconv.Atoi(r.URL.Query().Get("class_id"))
@@ -60,11 +63,6 @@ func SelectClassConfirmForm(t *template.Template) http.HandlerFunc {
 			items = append(items, v)
 		}
 
-		view, _ := t.Clone()
-		if _, err := view.ParseFiles("templates/pages/parents/class_confirm.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/class_confirm.tmpl", map[string]any{
 			"Title":   "Confirm Registration",
 			"Child":   child,
@@ -82,6 +80,9 @@ func SelectClassConfirmForm(t *template.Template) http.HandlerFunc {
 }
 
 func SelectClassConfirmSubmit(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/registration_done.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		childID, _ := strconv.Atoi(r.FormValue("child_id"))
@@ -224,8 +225,6 @@ func SelectClassConfirmSubmit(t *template.Template) http.HandlerFunc {
 				Count(&rank).Error
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/registration_done.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/registration_done.tmpl", map[string]any{
 			"Title":     "Registration Result",
 			"ChildName": child.Name,

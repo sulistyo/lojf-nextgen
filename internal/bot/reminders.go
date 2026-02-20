@@ -43,8 +43,16 @@ func parseOffsets() []time.Duration {
 	return out
 }
 
+var remindersLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.FixedZone("WIB", 7*3600)
+	}
+	return loc
+}()
+
 func runReminders() {
-	loc, _ := time.LoadLocation("Asia/Jakarta")
+	loc := remindersLoc
 	now := time.Now().In(loc)
 	// Use a strict 1-minute window: [tick, tick+1m) to avoid duplicate sends
 	tick := now.Truncate(time.Minute)
@@ -91,16 +99,34 @@ func runReminders() {
 			continue
 		}
 
+		if len(rows) == 0 {
+			continue
+		}
+
+		// Batch-load TelegramUsers for all parent IDs in one query.
+		parentIDs := make([]uint, 0, len(rows))
+		for _, x := range rows {
+			parentIDs = append(parentIDs, x.Parent)
+		}
+		var tgUsers []models.TelegramUser
+		_ = db.Conn().Where("parent_id IN ? AND deliverable = 1", parentIDs).Find(&tgUsers).Error
+
+		tgMap := make(map[uint]models.TelegramUser, len(tgUsers))
+		for _, tu := range tgUsers {
+			if tu.ParentID != nil {
+				tgMap[*tu.ParentID] = tu
+			}
+		}
+
 		c := NewClient()
 		for _, x := range rows {
-			var tu models.TelegramUser
-			if err := db.Conn().Where("parent_id = ? AND deliverable = 1", x.Parent).First(&tu).Error; err != nil {
+			tu, ok := tgMap[x.Parent]
+			if !ok {
 				continue
 			}
 			dateStr := x.Date.In(loc).Format("Mon, 02 Jan 2006 15:04")
 
 			if x.Status == "waitlisted" {
-				// Waitlist reminder (only sent if REMIND_INCLUDE_WAITLIST=1)
 				_ = c.SendMessage(tu.ChatID,
 					fmt.Sprintf("⏰ Reminder: %s — %s — %s\nStatus: Waitlist", x.Child, x.Class, dateStr),
 					nil)

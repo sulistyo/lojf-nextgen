@@ -23,9 +23,10 @@ type parentRow struct {
 	UpcomingRegs int64
 }
 
-// internal/handlers/admin_parents.go
-// internal/handlers/admin_parents.go
 func AdminParentsList(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/parents.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
@@ -177,13 +178,14 @@ func AdminParentsList(t *template.Template) http.HandlerFunc {
 			Flash:     MakeFlash(r, "", ""),
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/parents.tmpl")
 		_ = view.ExecuteTemplate(w, "admin/parents.tmpl", v)
 	}
 }
 
 func AdminParentShowForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/parent_show.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
@@ -201,14 +203,14 @@ func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 			errMsg = "Cannot delete: parent has upcoming registrations. Cancel them first."
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/parent_show.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
+		if err := view.ExecuteTemplate(w, "admin/parent_show.tmpl", map[string]any{
 			"Title":  "Admin • Parent",
 			"Parent": parent,
 			"Kids":   kids,
-			"Flash":  MakeFlash(r, errMsg, ""), // unifies ?ok=… / ?error=… / errMsg
-		})
+			"Flash":  MakeFlash(r, errMsg, ""),
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 

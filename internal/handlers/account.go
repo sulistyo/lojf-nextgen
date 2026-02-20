@@ -16,6 +16,9 @@ import (
 
 // GET /account  (auto-jump to /account/profile if cookie present)
 func AccountPhoneForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/account_phone.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// If cookie already set, skip the phone gate
 		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
@@ -33,15 +36,6 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 			}
 		}
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/account_phone.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/account_phone.tmpl", map[string]any{
 			"Title":  "My Account",
 			"Phone":  phone,
@@ -55,6 +49,9 @@ func AccountPhoneForm(t *template.Template) http.HandlerFunc {
 // ---------- Profile (view / update parent name), children list ----------
 
 func AccountProfileForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/account_profile.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" {
@@ -83,8 +80,6 @@ func AccountProfileForm(t *template.Template) http.HandlerFunc {
 			linked = true
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/account_profile.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/account_profile.tmpl", map[string]any{
 			"Title":    "My Account",
 			"Parent":   parent,
@@ -136,7 +131,7 @@ func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 
 	parent.Name = name
 	parent.Phone = newPhone
-	parent.Email = email // empty string = “unset”
+	parent.Email = email // empty string = "unset"
 
 	if err := db.Conn().Save(&parent).Error; err != nil {
 		le := strings.ToLower(err.Error())
@@ -155,6 +150,9 @@ func AccountProfileSubmit(w http.ResponseWriter, r *http.Request) {
 // ---------- Add/Edit/Delete child ----------
 
 func AccountNewChildForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/account_child_new.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if phone == "" {
@@ -168,15 +166,6 @@ func AccountNewChildForm(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/account_child_new.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/account_child_new.tmpl", map[string]any{
 			"Title":  "Add Child",
 			"Phone":  phone,
@@ -218,6 +207,9 @@ func AccountNewChildSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func AccountEditChildForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/account_child_edit.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.URL.Query().Get("id")
 		phone := r.URL.Query().Get("phone")
@@ -227,8 +219,6 @@ func AccountEditChildForm(t *template.Template) http.HandlerFunc {
 			http.Error(w, "child not found", 404)
 			return
 		}
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/account_child_edit.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/account_child_edit.tmpl", map[string]any{
 			"Title":     "Edit Child",
 			"Child":     child,

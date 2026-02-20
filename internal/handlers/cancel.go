@@ -10,18 +10,11 @@ import (
 )
 
 func CancelForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/cancel.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
-
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/cancel.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 
 		if code == "" {
 			if err := view.ExecuteTemplate(w, "parents/cancel.tmpl", map[string]any{
@@ -60,6 +53,9 @@ func CancelForm(t *template.Template) http.HandlerFunc {
 }
 
 func CancelSubmit(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/cancel_done.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, err.Error(), 400)
@@ -76,15 +72,6 @@ func CancelSubmit(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/cancel_done.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/cancel_done.tmpl", map[string]any{
 			"Title": "Canceled", "Code": code,
 		}); err != nil {

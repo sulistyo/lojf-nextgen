@@ -15,14 +15,15 @@ import (
 
 // LIST
 func AdminTemplatesIndex(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/templates.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var ts []models.ClassTemplate
 		_ = db.Conn().Preload("Questions", func(tx *gorm.DB) *gorm.DB {
 			return tx.Order("position asc, id asc")
 		}).Order("lower(name) asc").Find(&ts).Error
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/templates.tmpl")
 		_ = view.ExecuteTemplate(w, "admin/templates.tmpl", map[string]any{
 			"Title":     "Admin • Templates",
 			"Templates": ts,
@@ -33,9 +34,10 @@ func AdminTemplatesIndex(t *template.Template) http.HandlerFunc {
 
 // NEW
 func AdminTemplatesNewForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/templates_new.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/templates_new.tmpl")
 		_ = view.ExecuteTemplate(w, "admin/templates_new.tmpl", map[string]any{
 			"Title": "Admin • New Template",
 		})
@@ -95,6 +97,9 @@ func AdminTemplatesCreate(w http.ResponseWriter, r *http.Request) {
 
 // EDIT
 func AdminTemplatesEditForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/templates_edit.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
 
@@ -107,13 +112,13 @@ func AdminTemplatesEditForm(t *template.Template) http.HandlerFunc {
 			return
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/admin/templates_edit.tmpl")
-		_ = view.ExecuteTemplate(w, "admin/templates_edit.tmpl", map[string]any{
+		if err := view.ExecuteTemplate(w, "admin/templates_edit.tmpl", map[string]any{
 			"Title":     "Admin • Edit Template",
 			"Tpl":       tpl,
-			"Questions": tpl.Questions, // convenience alias
-		})
+			"Questions": tpl.Questions,
+		}); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
 	}
 }
 

@@ -25,19 +25,13 @@ func unescapeIfQuoted(s string) string {
 }
 
 func AdminClasses(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/classes.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var classes []models.Class
 		if err := db.Conn().Order("date desc").Find(&classes).Error; err != nil {
 			http.Error(w, "db error", 500)
-			return
-		}
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/admin/classes.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
 			return
 		}
 		data := map[string]any{"Title": "Admin • Classes", "Classes": classes}
@@ -50,6 +44,9 @@ func AdminClasses(t *template.Template) http.HandlerFunc {
 
 
 func AdminNewClass(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/admin/classes_new.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var tpls []models.ClassTemplate
 		_ = db.Conn().
@@ -67,24 +64,19 @@ func AdminNewClass(t *template.Template) http.HandlerFunc {
 				q := &tpls[i].Questions[j]
 				q.Label = unescapeIfQuoted(q.Label)
 				if strings.ToLower(q.Kind) == "radio" {
-					q.Options = normalizeChoicesComma(q.Options) // “A,B,C”
+					q.Options = normalizeChoicesComma(q.Options) // "A,B,C"
 				} else {
 					q.Options = ""
 				}
 			}
 		}
 
-		view, err := t.Clone()
-		if err != nil { http.Error(w, err.Error(), 500); return }
-		if _, err := view.ParseFiles("templates/pages/admin/classes_new.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500); return
-		}
 		data := map[string]any{
 			"Title": "Admin • New Class",
 			"Tpls":  tpls,
 		}
 		if err := view.ExecuteTemplate(w, "admin/classes_new.tmpl", data); err != nil {
-			http.Error(w, err.Error(), 500); return
+			http.Error(w, err.Error(), 500)
 		}
 	}
 }

@@ -23,6 +23,9 @@ type myRow struct {
 
 // GET /my  (optional ?phone=...)
 func MyPhoneForm(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/my_phone.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// If we already know the parent, skip the phone gate
 		if cPhone, _ := readParentCookies(r); strings.TrimSpace(cPhone) != "" {
@@ -38,15 +41,6 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 			}
 		}
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/my_phone.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/my_phone.tmpl", map[string]any{
 			"Title":  "My Registrations",
 			"Phone":  phone,
@@ -59,6 +53,9 @@ func MyPhoneForm(t *template.Template) http.HandlerFunc {
 
 // GET /my/list?phone=...
 func MyList(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/my_list.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := svc.NormPhone(r.URL.Query().Get("phone"))
 		if strings.TrimSpace(phone) == "" {
@@ -117,15 +114,6 @@ func MyList(t *template.Template) http.HandlerFunc {
 		// keep cookies fresh
 		setParentCookies(w, parent.Phone, parent.Name)
 
-		view, err := t.Clone()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		if _, err := view.ParseFiles("templates/pages/parents/my_list.tmpl"); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
 		if err := view.ExecuteTemplate(w, "parents/my_list.tmpl", map[string]any{
 			"Title":  "My Registrations",
 			"Phone":  parent.Phone,
@@ -139,6 +127,9 @@ func MyList(t *template.Template) http.HandlerFunc {
 
 // GET /my/qr?code=REG-xxxxxx
 func MyQR(t *template.Template) http.HandlerFunc {
+	view := template.Must(t.Clone())
+	template.Must(view.ParseFiles("templates/pages/parents/my_qr.tmpl"))
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		phone := r.URL.Query().Get("phone")
 		if strings.TrimSpace(phone) == "" {
@@ -188,8 +179,6 @@ func MyQR(t *template.Template) http.HandlerFunc {
 			waitRank = int(cnt)
 		}
 
-		view, _ := t.Clone()
-		_, _ = view.ParseFiles("templates/pages/parents/my_qr.tmpl")
 		_ = view.ExecuteTemplate(w, "parents/my_qr.tmpl", map[string]any{
 			"Title":        "My Registration • QR",
 			"Parent":       parent,
