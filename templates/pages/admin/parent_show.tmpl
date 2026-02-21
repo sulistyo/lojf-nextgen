@@ -66,6 +66,59 @@
   </div>
 </div>
 
+<!-- Registration History -->
+<div class="mt-6 bg-white border rounded-2xl p-6">
+  <h2 class="font-semibold mb-4">Class Registration History</h2>
+  {{if .Regs}}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 border-b">
+          <th class="pb-2 pr-4 font-medium">Class</th>
+          <th class="pb-2 pr-4 font-medium">Date</th>
+          <th class="pb-2 pr-4 font-medium">Child</th>
+          <th class="pb-2 pr-4 font-medium">Status</th>
+          <th class="pb-2 pr-4 font-medium">Check-in</th>
+          <th class="pb-2 font-medium">Code</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {{range .Regs}}
+        <tr class="hover:bg-gray-50">
+          <td class="py-2 pr-4">
+            <a href="/admin/classes/{{.ClassID}}" class="text-blue-600 hover:underline">{{.ClassName}}</a>
+          </td>
+          <td class="py-2 pr-4 whitespace-nowrap text-gray-600">{{fmtDate .ClassDate}}</td>
+          <td class="py-2 pr-4">{{.ChildName}}</td>
+          <td class="py-2 pr-4">
+            {{if eq .Status "confirmed"}}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Confirmed</span>
+            {{else if eq .Status "waitlisted"}}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Waitlisted</span>
+            {{else if eq .Status "canceled"}}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Canceled</span>
+            {{else}}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{{.Status}}</span>
+            {{end}}
+          </td>
+          <td class="py-2 pr-4 text-gray-600">
+            {{if .CheckInStr}}
+              <span class="text-green-700">{{.CheckInStr}}</span>
+            {{else}}
+              <span class="text-gray-400">—</span>
+            {{end}}
+          </td>
+          <td class="py-2 text-xs text-gray-500 font-mono">{{.RegCode}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="text-sm text-gray-500">No registrations found for this parent.</p>
+  {{end}}
+</div>
+
 <div class="mt-6 p-4 border rounded-2xl bg-red-50">
   <h3 class="font-semibold text-red-700 mb-2">Danger zone</h3>
   <p class="text-sm text-red-700 mb-3">
