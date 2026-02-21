@@ -1,0 +1,81 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Families</h1>
+{{template "admin_nav" .}}
+
+<form method="GET" class="bg-white p-4 border rounded-2xl grid md:grid-cols-4 gap-3 mb-4">
+  <div>
+    <label class="block text-xs text-gray-600 mb-1">From</label>
+    <input type="date" name="from" value="{{.From}}" class="w-full rounded-xl border p-2">
+  </div>
+  <div>
+    <label class="block text-xs text-gray-600 mb-1">To</label>
+    <input type="date" name="to" value="{{.To}}" class="w-full rounded-xl border p-2">
+  </div>
+  <div class="flex items-end">
+    <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Apply</button>
+  </div>
+</form>
+
+<div class="grid md:grid-cols-4 gap-3 mb-4">
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">Total Families</div>
+    <div class="text-2xl font-semibold">{{.TotalFamilies}}</div>
+  </div>
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">New</div>
+    <div class="text-2xl font-semibold text-emerald-600">{{.NewFamilies}}</div>
+  </div>
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">Returning</div>
+    <div class="text-2xl font-semibold text-blue-600">{{.ReturningFamilies}}</div>
+  </div>
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">% New</div>
+    <div class="text-2xl font-semibold">{{.PctNew}}%</div>
+  </div>
+</div>
+
+<div class="bg-white border rounded-2xl overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-left text-gray-500 bg-gray-50">
+      <tr>
+        <th class="py-2 px-3">Family</th>
+        <th class="py-2 px-3">Phone</th>
+        <th class="py-2 px-3">Children</th>
+        <th class="py-2 px-3">Sessions</th>
+        <th class="py-2 px-3">Status</th>
+        <th class="py-2 px-3">First-ever session</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{if .Rows}}
+        {{range .Rows}}
+        <tr class="border-t">
+          <td class="py-2 px-3">
+            <a class="underline hover:text-gray-600" href="/admin/parents/{{.ParentID}}">{{.Name}}</a>
+          </td>
+          <td class="py-2 px-3 text-gray-600">{{.Phone}}</td>
+          <td class="py-2 px-3">{{.Children}}</td>
+          <td class="py-2 px-3">{{.Sessions}}</td>
+          <td class="py-2 px-3">
+            {{if .IsNew}}
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">New</span>
+            {{else}}
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Returning</span>
+            {{end}}
+          </td>
+          <td class="py-2 px-3 text-gray-500">{{.FirstDateStr}}</td>
+        </tr>
+        {{end}}
+      {{else}}
+        <tr>
+          <td colspan="6" class="py-8 text-center text-gray-400">
+            No confirmed registrations in this period.
+          </td>
+        </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{define "admin/families.tmpl"}}{{template "base" .}}{{end}}

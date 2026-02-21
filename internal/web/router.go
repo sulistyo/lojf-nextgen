@@ -109,6 +109,9 @@ func Router() http.Handler {
 			ag.Post("/registrations/{id}/cancel", handlers.AdminRegCancel)
 			ag.Post("/registrations/{id}/delete", handlers.AdminRegDelete)
 
+			// Families report
+			ag.Get("/families", handlers.AdminFamilies(tmpl))
+
 			// Parents
 			ag.Get("/parents", handlers.AdminParentsList(tmpl))
 			ag.Get("/parents/{id}", handlers.AdminParentShowForm(tmpl))
