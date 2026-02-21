@@ -104,9 +104,10 @@ func AdminFamilies(t *template.Template) http.HandlerFunc {
 		}
 
 		// 3. First-ever confirmed class date per parent (to classify new vs returning)
+		// NOTE: MIN() on a date column returns a raw string in SQLite; scan as string then parse.
 		type firstClassRow struct {
 			ParentID       uint
-			FirstClassDate time.Time
+			FirstClassDate string `gorm:"column:first_class_date"`
 		}
 		var firsts []firstClassRow
 		if err := db.Conn().
@@ -121,7 +122,20 @@ func AdminFamilies(t *template.Template) http.HandlerFunc {
 		}
 		firstMap := make(map[uint]time.Time, len(firsts))
 		for _, f := range firsts {
-			firstMap[f.ParentID] = f.FirstClassDate
+			for _, layout := range []string{
+				time.RFC3339Nano,
+				time.RFC3339,
+				"2006-01-02 15:04:05.999999999-07:00",
+				"2006-01-02 15:04:05-07:00",
+				"2006-01-02 15:04:05+00:00",
+				"2006-01-02 15:04:05",
+				"2006-01-02",
+			} {
+				if t, err := time.Parse(layout, f.FirstClassDate); err == nil {
+					firstMap[f.ParentID] = t
+					break
+				}
+			}
 		}
 
 		// 4. Distinct session count per parent in period
