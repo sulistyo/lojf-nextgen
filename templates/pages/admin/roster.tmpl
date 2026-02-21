@@ -3,68 +3,52 @@
 {{$root := .}}
 {{template "admin_nav" .}}
 
-<form method="GET" class="bg-white p-4 border rounded-2xl grid md:grid-cols-5 gap-3 mb-4">
-  <div>
-    <label class="block text-xs text-gray-600 mb-1">From</label>
-    <input type="date" name="from" value="{{.Filters.From}}" class="w-full rounded-xl border p-2">
+{{/* Single unified filter form — fixes the "q lost on re-filter" bug */}}
+<form method="GET" action="/admin/roster" class="bg-white p-4 border rounded-2xl mb-4">
+  <div class="grid md:grid-cols-5 gap-3 mb-3">
+    <div>
+      <label class="block text-xs text-gray-600 mb-1">From</label>
+      <input type="date" name="from" value="{{.Filters.From}}" class="w-full rounded-xl border p-2">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-600 mb-1">To</label>
+      <input type="date" name="to" value="{{.Filters.To}}" class="w-full rounded-xl border p-2">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-600 mb-1">Class</label>
+      <select name="class_id" class="w-full rounded-xl border p-2">
+        <option value="">All</option>
+        {{range .Classes}}
+          <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Filters.ClassID}}selected{{end}}>{{fmtDate .Date}} :: {{nl2br .Name}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-600 mb-1">Status</label>
+      <select name="status" class="w-full rounded-xl border p-2">
+        <option value="" {{if eq .Filters.Status ""}}selected{{end}}>All</option>
+        <option value="confirmed" {{if eq .Filters.Status "confirmed"}}selected{{end}}>Confirmed</option>
+        <option value="waitlisted" {{if eq .Filters.Status "waitlisted"}}selected{{end}}>Waitlisted</option>
+        <option value="checked-in" {{if eq .Filters.Status "checked-in"}}selected{{end}}>Checked-in</option>
+        <option value="canceled" {{if eq .Filters.Status "canceled"}}selected{{end}}>Canceled</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-600 mb-1">Search</label>
+      <input name="q" value="{{.Filters.Q}}" placeholder="Child / Parent / Phone / Code…"
+             class="w-full rounded-xl border p-2">
+    </div>
   </div>
-  <div>
-    <label class="block text-xs text-gray-600 mb-1">To</label>
-    <input type="date" name="to" value="{{.Filters.To}}" class="w-full rounded-xl border p-2">
-  </div>
-  <div>
-    <label class="block text-xs text-gray-600 mb-1">Class</label>
-    <select name="class_id" class="w-full rounded-xl border p-2">
-      <option value="">All</option>
-      {{range .Classes}}
-        <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Filters.ClassID}}selected{{end}}>{{fmtDate .Date}} :: {{nl2br .Name}}</option>
-      {{end}}
-    </select>
-  </div>
-  <div>
-    <label class="block text-xs text-gray-600 mb-1">Status</label>
-    <select name="status" class="w-full rounded-xl border p-2">
-      <option value="" {{if eq .Filters.Status ""}}selected{{end}}>All</option>
-      <option value="confirmed" {{if eq .Filters.Status "confirmed"}}selected{{end}}>Confirmed</option>
-      <option value="waitlisted" {{if eq .Filters.Status "waitlisted"}}selected{{end}}>Waitlisted</option>
-      <option value="checked-in" {{if eq .Filters.Status "checked-in"}}selected{{end}}>Checked-in</option>
-      <option value="canceled" {{if eq .Filters.Status "canceled"}}selected{{end}}>Canceled</option>
-    </select>
-  </div>
-  <div class="flex gap-2 items-end">
-    <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Filter</button>
-    <a class="px-3 py-2 rounded-xl border"
+  <div class="flex gap-2 items-center">
+    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm">Apply</button>
+    <a class="px-4 py-2 rounded-xl border text-sm" href="/admin/roster">Clear</a>
+    <a class="px-4 py-2 rounded-xl border text-sm ml-auto"
        href="/admin/roster.csv?from={{.Filters.From}}&to={{.Filters.To}}&class_id={{.Filters.ClassID}}&status={{.Filters.Status}}&q={{.Filters.Q}}">Export CSV</a>
   </div>
 </form>
 
-<form class="mb-4 flex flex-wrap gap-2 items-end" method="GET" action="/admin/roster">
-  <input type="hidden" name="from" value="{{.Filters.From}}">
-  <input type="hidden" name="to" value="{{.Filters.To}}">
-  <input type="hidden" name="class_id" value="{{.Filters.ClassID}}">
-  <input type="hidden" name="status" value="{{.Filters.Status}}">
-
-  <label class="text-sm">
-    <span class="block mb-1">Search</span>
-    <input name="q" value="{{.Filters.Q}}" placeholder="Child / Parent / Phone / Class / Code / Answers"
-           class="border rounded-xl px-3 py-2 w-80">
-  </label>
-
-  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white">Apply</button>
-  <a class="px-3 py-2 rounded-xl border" href="/admin/roster">Clear</a>
-</form>
-
-<div class="mb2 text-sm text-gray-600">
+<div class="mb-3 text-sm text-gray-600">
   Showing {{len .Rows}} result(s)
-</div>
-
-<div class="mb-3 flex flex-wrap items-center gap-3">
-  <label class="text-sm">
-    <input id="rosterQuickFilter" placeholder="Type to filter rows..." class="border rounded-xl px-3 py-2 w-80">
-  </label>
-  <div class="text-sm text-gray-600">
-    Showing <span id="rosterShownCount">0</span> / <span id="rosterTotalCount">0</span>
-  </div>
 </div>
 
 <div class="bg-white border rounded-2xl overflow-x-auto">
@@ -72,13 +56,13 @@
   <table id="rosterTable" class="w-full text-sm">
     <thead>
       <tr class="text-left text-sm text-gray-600">
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="0">Reg Date</th>
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="1">Class</th>
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="2">Child</th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="0">Reg Date <span class="sort-icon text-gray-400"></span></th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="1">Class <span class="sort-icon text-gray-400"></span></th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="2">Child <span class="sort-icon text-gray-400"></span></th>
         <th class="text-left px-3 py-2">Answers</th>
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="4">Parent</th>
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="5">Code</th>
-        <th class="py-2 px-3 cursor-pointer select-none" data-sort="6">Status</th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="4">Parent <span class="sort-icon text-gray-400"></span></th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="5">Code <span class="sort-icon text-gray-400"></span></th>
+        <th class="py-2 px-3 cursor-pointer select-none hover:text-gray-900" data-sort="6">Status <span class="sort-icon text-gray-400"></span></th>
         <th class="py-2 px-3">Actions</th>
       </tr>
     </thead>
@@ -125,9 +109,13 @@
 
         <td class="py-2 px-3">
           {{if .CheckInStr}}
-            checked-in at {{.CheckInStr}}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">checked-in {{.CheckInStr}}</span>
           {{else if eq .Status "waitlisted"}}
-            Waitlist (#{{.WaitlistRank}})
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Waitlist #{{.WaitlistRank}}</span>
+          {{else if eq .Status "confirmed"}}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">confirmed</span>
+          {{else if eq .Status "canceled"}}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">canceled</span>
           {{else}}
             {{.Status}}
           {{end}}
@@ -140,11 +128,13 @@
             </form>
           {{end}}
 
-          <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline">
+          <form method="POST" action="/admin/registrations/{{.ID}}/cancel" style="display:inline"
+                onsubmit="return confirm('Cancel this registration?')">
             <button class="text-xs underline">Cancel</button>
           </form>
 
-          <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline" onsubmit="return confirm('Delete this registration?')">
+          <form method="POST" action="/admin/registrations/{{.ID}}/delete" style="display:inline"
+                onsubmit="return confirm('Delete this registration?')">
             <button class="text-xs underline">Delete</button>
           </form>
         </td>
@@ -159,38 +149,6 @@
 {{end}}
 
 {{define "admin/roster.tmpl"}}{{template "base" .}}
-
-<script>
-(function () {
-  const input = document.getElementById('rosterQuickFilter');
-  const tbody = document.getElementById('rosterTbody');
-  const shownEl = document.getElementById('rosterShownCount');
-  const totalEl = document.getElementById('rosterTotalCount');
-
-  if (!input || !tbody) return;
-
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-  totalEl.textContent = rows.length;
-
-  function updateCount() {
-    const shown = rows.filter(r => r.style.display !== 'none').length;
-    shownEl.textContent = shown;
-  }
-
-  function normalize(s){ return (s || '').toLowerCase().replace(/\s+/g,' ').trim(); }
-
-  input.addEventListener('input', () => {
-    const q = normalize(input.value);
-    rows.forEach(tr => {
-      const text = normalize(tr.innerText);
-      tr.style.display = (!q || text.includes(q)) ? '' : 'none';
-    });
-    updateCount();
-  });
-
-  updateCount();
-})();
-</script>
 
 <script>
 (function () {
@@ -216,8 +174,23 @@
     return { kind: 'text', v: normalize(td.innerText) };
   }
 
+  function updateSortIcons(activeColIdx, asc) {
+    table.querySelectorAll('th[data-sort]').forEach(th => {
+      const icon = th.querySelector('.sort-icon');
+      if (!icon) return;
+      const col = parseInt(th.getAttribute('data-sort'), 10);
+      if (col === activeColIdx) {
+        icon.textContent = asc ? '↑' : '↓';
+        th.classList.add('text-gray-900');
+      } else {
+        icon.textContent = '';
+        th.classList.remove('text-gray-900');
+      }
+    });
+  }
+
   function sortBy(colIdx) {
-    const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
     const asc = (state.col === colIdx) ? !state.asc : true;
     state.col = colIdx;
     state.asc = asc;
@@ -235,6 +208,7 @@
     });
 
     rows.forEach(r => tbody.appendChild(r));
+    updateSortIcons(colIdx, asc);
   }
 
   table.querySelectorAll('th[data-sort]').forEach(th => {
