@@ -182,6 +182,20 @@ func AdminParentsList(t *template.Template) http.HandlerFunc {
 	}
 }
 
+type regHistoryRow struct {
+	RegID         uint
+	RegCode       string
+	Status        string
+	CheckInAt     *time.Time
+	CheckInStr    string // formatted check-in time, empty if not checked in
+	ClassID       uint
+	ClassName     string
+	ClassDate     time.Time
+	ChildID       uint
+	ChildName     string
+	CreatedAt     time.Time
+}
+
 func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 	view := template.Must(t.Clone())
 	template.Must(view.ParseFiles("templates/pages/admin/parent_show.tmpl"))
@@ -197,7 +211,35 @@ func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 		var kids []models.Child
 		_ = db.Conn().Where("parent_id = ?", parent.ID).Order("name asc").Find(&kids).Error
 
-		// Legacy ?err=has_future support → convert to a human message via MakeFlash’s errStr.
+		// Load registration history with class and child info
+		var regs []regHistoryRow
+		_ = db.Conn().Raw(`
+			SELECT
+				r.id          AS reg_id,
+				r.code        AS reg_code,
+				r.status      AS status,
+				r.check_in_at AS check_in_at,
+				c.id          AS class_id,
+				c.name        AS class_name,
+				c.date        AS class_date,
+				ch.id         AS child_id,
+				ch.name       AS child_name,
+				r.created_at  AS created_at
+			FROM registrations r
+			JOIN classes c  ON c.id  = r.class_id
+			JOIN children ch ON ch.id = r.child_id
+			WHERE r.parent_id = ?
+			ORDER BY c.date DESC, r.id DESC
+		`, parent.ID).Scan(&regs).Error
+
+		loc, _ := time.LoadLocation("Asia/Jakarta")
+		for i := range regs {
+			if regs[i].CheckInAt != nil {
+				regs[i].CheckInStr = regs[i].CheckInAt.In(loc).Format("Mon, 02 Jan 2006 15:04")
+			}
+		}
+
+		// Legacy ?err=has_future support → convert to a human message via MakeFlash's errStr.
 		errMsg := ""
 		if r.URL.Query().Get("err") == "has_future" {
 			errMsg = "Cannot delete: parent has upcoming registrations. Cancel them first."
@@ -207,6 +249,7 @@ func AdminParentShowForm(t *template.Template) http.HandlerFunc {
 			"Title":  "Admin • Parent",
 			"Parent": parent,
 			"Kids":   kids,
+			"Regs":   regs,
 			"Flash":  MakeFlash(r, errMsg, ""),
 		}); err != nil {
 			http.Error(w, err.Error(), 500)
