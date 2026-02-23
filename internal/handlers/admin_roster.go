@@ -25,6 +25,7 @@ type rosterRow struct {
 	ParentName  string
 	ParentPhone string
 
+	ChildID   uint
 	ChildName string
 	BirthDate time.Time
 	Gender    string
@@ -36,6 +37,7 @@ type rosterRow struct {
 	CreatedStr	string
 	CreatedAt    time.Time
 	WaitlistRank int
+	IsFirstTimer bool
 }
 
 type rosterPageVM struct {
@@ -115,7 +117,7 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
         q := db.Conn().Table("registrations").
             Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
                     registrations.parent_id as parent_id,
-                    children.name as child_name, children.birth_date as birth_date, children.gender as gender,
+                    children.id as child_id, children.name as child_name, children.birth_date as birth_date, children.gender as gender,
                     classes.id as class_id, classes.name as class_name, classes.date as class_date,
                     parents.name as parent_name, parents.phone as parent_phone`).
             Joins("JOIN children ON children.id = registrations.child_id").
@@ -238,7 +240,40 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
             }
         }
 
-        
+        // --- Determine first-timers ---
+        // A child is a first-timer if the current registration is their earliest ever.
+        if len(rows) > 0 {
+            childIDs := make([]uint, 0, len(rows))
+            seenChild := map[uint]bool{}
+            for _, rr := range rows {
+                if !seenChild[rr.ChildID] {
+                    seenChild[rr.ChildID] = true
+                    childIDs = append(childIDs, rr.ChildID)
+                }
+            }
+
+            type firstRegRow struct {
+                ChildID    uint
+                FirstRegID uint
+            }
+            var firstRegs []firstRegRow
+            _ = db.Conn().Table("registrations").
+                Select("child_id, MIN(id) as first_reg_id").
+                Where("child_id IN ?", childIDs).
+                Group("child_id").
+                Scan(&firstRegs).Error
+
+            firstRegMap := map[uint]uint{} // childID -> earliest reg ID
+            for _, fr := range firstRegs {
+                firstRegMap[fr.ChildID] = fr.FirstRegID
+            }
+            for i := range rows {
+                if firstRegMap[rows[i].ChildID] == rows[i].ID {
+                    rows[i].IsFirstTimer = true
+                }
+            }
+        }
+
         answers := map[uint][]string{}
         if len(rows) > 0 {
             regIDs := make([]uint, 0, len(rows))
@@ -311,6 +346,7 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		ParentName  string
 		ParentPhone string
 
+		ChildID     uint
 		ChildName   string
 		Gender      string
 		BirthDate   time.Time
@@ -318,12 +354,14 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		ClassID     uint
 		ClassName   string
 		ClassDate   time.Time
+
+		IsFirstTimer bool
 	}
 
 	q := db.Conn().Table("registrations").
 		Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
 		        registrations.parent_id as parent_id,
-		        children.name as child_name, children.gender as gender, children.birth_date as birth_date,
+		        children.id as child_id, children.name as child_name, children.gender as gender, children.birth_date as birth_date,
 		        classes.id as class_id, classes.name as class_name, classes.date as class_date,
 		        parents.name as parent_name, parents.phone as parent_phone`).
 		Joins("JOIN children ON children.id = registrations.child_id").
@@ -375,6 +413,37 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- Determine first-timers for CSV ---
+	if len(rows) > 0 {
+		childIDs := make([]uint, 0, len(rows))
+		seenChild := map[uint]bool{}
+		for _, rr := range rows {
+			if !seenChild[rr.ChildID] {
+				seenChild[rr.ChildID] = true
+				childIDs = append(childIDs, rr.ChildID)
+			}
+		}
+		type firstRegRowCSV struct {
+			ChildID    uint
+			FirstRegID uint
+		}
+		var firstRegs []firstRegRowCSV
+		_ = db.Conn().Table("registrations").
+			Select("child_id, MIN(id) as first_reg_id").
+			Where("child_id IN ?", childIDs).
+			Group("child_id").
+			Scan(&firstRegs).Error
+		firstRegMap := map[uint]uint{}
+		for _, fr := range firstRegs {
+			firstRegMap[fr.ChildID] = fr.FirstRegID
+		}
+		for i := range rows {
+			if firstRegMap[rows[i].ChildID] == rows[i].ID {
+				rows[i].IsFirstTimer = true
+			}
+		}
+	}
+
 	// answers (same as your current CSV, unchanged)
 	answers := map[uint][]string{}
 	if len(rows) > 0 {
@@ -413,7 +482,7 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 
 	_ = cw.Write([]string{
 		"Registration Date", "Date", "Class", "Child", "Gender", "DOB",
-		"Parent", "Phone", "Code", "Status", "CheckedInAt", "Answers",
+		"Parent", "Phone", "Code", "Status", "CheckedInAt", "First Timer", "Answers",
 	})
 
 	for _, row := range rows {
@@ -428,6 +497,10 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 			dobStr = row.BirthDate.Format("2006-01-02")
 		}
 		ansStr := strings.Join(answers[row.ID], " | ")
+		firstTimerStr := ""
+		if row.IsFirstTimer {
+			firstTimerStr = "Yes"
+		}
 
 		_ = cw.Write([]string{
 			createdStr,
@@ -441,6 +514,7 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 			row.Code,
 			row.Status,
 			checkStr,
+			firstTimerStr,
 			ansStr,
 		})
 	}
