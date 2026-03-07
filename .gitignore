@@ -20,9 +20,9 @@ coverage.out
 *.db
 *.sqlite
 *.sqlite3
-*.-journal
-*.-wal
-*.-shm
+*-journal
+*-wal
+*-shm
 lojf.db
 
 # Logs & runtime

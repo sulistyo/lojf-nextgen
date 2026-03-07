@@ -1,7 +1,7 @@
 APP=lojf-nextgen
 PKG=./cmd/server
 
-.PHONY: all tidy build run test clean fmt
+.PHONY: all tidy build run test clean fmt seed
 
 all: build
 
@@ -22,3 +22,6 @@ test:
 
 clean:
 	rm -rf bin
+
+seed:
+	go run ./cmd/seed --reset
