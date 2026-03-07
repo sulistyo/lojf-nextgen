@@ -1,15 +1,15 @@
 package web
 
 import (
-	"html/template"
-	"net/http"
-	"path/filepath"
-	"time"
-	"strings"
-	"html"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/lojf/nextgen/internal/handlers"
+	"html"
+	"html/template"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 func Router() http.Handler {
@@ -24,6 +24,7 @@ func Router() http.Handler {
 	// Public pages
 	r.Get("/", handlers.Home(tmpl))
 	r.Get("/healthz", handlers.Health)
+	r.Get("/version", handlers.Version)
 	r.Post("/tg/webhook", handlers.TelegramWebhook)
 	r.Get("/switch-number", handlers.SwitchNumber)
 
@@ -121,15 +122,15 @@ func Router() http.Handler {
 			ag.Post("/parents/{id}/delete", handlers.AdminParentDelete)
 
 			// Templates
-			ag.Get("/templates",               handlers.AdminTemplatesIndex(tmpl))
-			ag.Get("/templates/new",           handlers.AdminTemplatesNewForm(tmpl))
-			ag.Post("/templates",              handlers.AdminTemplatesCreate)
-			ag.Get("/templates/{id}/edit",     handlers.AdminTemplatesEditForm(tmpl))
-			ag.Post("/templates/{id}",         handlers.AdminTemplatesUpdate)
-			ag.Post("/templates/{id}/delete",  handlers.AdminTemplatesDelete)
+			ag.Get("/templates", handlers.AdminTemplatesIndex(tmpl))
+			ag.Get("/templates/new", handlers.AdminTemplatesNewForm(tmpl))
+			ag.Post("/templates", handlers.AdminTemplatesCreate)
+			ag.Get("/templates/{id}/edit", handlers.AdminTemplatesEditForm(tmpl))
+			ag.Post("/templates/{id}", handlers.AdminTemplatesUpdate)
+			ag.Post("/templates/{id}/delete", handlers.AdminTemplatesDelete)
 
 			// JSON for prefill
-			ag.Get("/templates/{id}.json",     handlers.AdminTemplatesShowJSON)
+			ag.Get("/templates/{id}.json", handlers.AdminTemplatesShowJSON)
 		})
 	})
 
@@ -143,42 +144,44 @@ func mustParseTemplates(baseDir string) *template.Template {
 	}
 
 	funcs := template.FuncMap{
-		"year":     func() string { return time.Now().Format("2006") },
-		"jdate":    func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
-		"jisodate": func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
-		"jlong":    func(t time.Time) string { return t.In(loc).Format("02 January 2006") }, // 12 January 2012
+		"year":        func() string { return time.Now().Format("2006") },
+		"jdate":       func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
+		"jisodate":    func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
+		"jlong":       func(t time.Time) string { return t.In(loc).Format("02 January 2006") }, // 12 January 2012
 		"fmtDate":     func(t time.Time) string { return t.In(loc).Format("02-01-2006") },
 		"fmtDateTime": func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006 15:04") },
-        "unescape": func(s string) string {
-            s = strings.ReplaceAll(s, "\r\n", "\n")    // normalize
-            s = strings.ReplaceAll(s, "\\r\\n", "\n")  // literal backslash-encoded
-            s = strings.ReplaceAll(s, "\\n", "\n")
-            s = strings.ReplaceAll(s, "\\t", "    ")
-            return s
-        },
+		"unescape": func(s string) string {
+			s = strings.ReplaceAll(s, "\r\n", "\n")   // normalize
+			s = strings.ReplaceAll(s, "\\r\\n", "\n") // literal backslash-encoded
+			s = strings.ReplaceAll(s, "\\n", "\n")
+			s = strings.ReplaceAll(s, "\\t", "    ")
+			return s
+		},
 		"nl2br": func(s string) template.HTML {
-			if s == "" { return "" }
+			if s == "" {
+				return ""
+			}
 
-			  // 1) Remove accidental outer quotes (e.g. "....")
-			  ss := strings.TrimSpace(s)
-			  if len(ss) >= 2 {
-			    if (ss[0] == '"'  && ss[len(ss)-1] == '"') ||
-			       (ss[0] == '\'' && ss[len(ss)-1] == '\'') {
-			      ss = ss[1:len(ss)-1]
-			    }
-			  }
-			  // 2) Turn &#34; / &quot; back into actual quotes (and other entities)
-			  ss = html.UnescapeString(ss)
-			  // 3) Normalize newlines
-	            ss = strings.ReplaceAll(ss, "\r\n", "\n")    // normalize
-	            ss = strings.ReplaceAll(ss, "\\r\\n", "\n")  // literal backslash-encoded
-	            ss = strings.ReplaceAll(ss, "\\n", "\n")
-	            ss = strings.ReplaceAll(ss, "\\t", "    ")
-			  // 4) Escape once, then nl -> <br>
-			  esc := html.EscapeString(ss)
-			  esc = strings.ReplaceAll(esc, "\n", "<br>")
-			  return template.HTML(esc)	    
-		},        
+			// 1) Remove accidental outer quotes (e.g. "....")
+			ss := strings.TrimSpace(s)
+			if len(ss) >= 2 {
+				if (ss[0] == '"' && ss[len(ss)-1] == '"') ||
+					(ss[0] == '\'' && ss[len(ss)-1] == '\'') {
+					ss = ss[1 : len(ss)-1]
+				}
+			}
+			// 2) Turn &#34; / &quot; back into actual quotes (and other entities)
+			ss = html.UnescapeString(ss)
+			// 3) Normalize newlines
+			ss = strings.ReplaceAll(ss, "\r\n", "\n")   // normalize
+			ss = strings.ReplaceAll(ss, "\\r\\n", "\n") // literal backslash-encoded
+			ss = strings.ReplaceAll(ss, "\\n", "\n")
+			ss = strings.ReplaceAll(ss, "\\t", "    ")
+			// 4) Escape once, then nl -> <br>
+			esc := html.EscapeString(ss)
+			esc = strings.ReplaceAll(esc, "\n", "<br>")
+			return template.HTML(esc)
+		},
 	}
 
 	p := template.New("").Funcs(funcs)
