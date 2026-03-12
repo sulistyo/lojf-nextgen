@@ -12,7 +12,7 @@ fmt:
 	go fmt ./...
 
 build: tidy
-	CGO_ENABLED=1 go build -o bin/$(APP) $(PKG)
+	CGO_ENABLED=1 go build -ldflags "-X github.com/lojf/nextgen/internal/handlers.BuildVersion=$(shell git rev-parse --short HEAD)" -o bin/$(APP) $(PKG)
 
 run:
 	./bin/$(APP)
