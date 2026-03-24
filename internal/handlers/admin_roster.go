@@ -41,20 +41,23 @@ type rosterRow struct {
 }
 
 type rosterPageVM struct {
-	Title     string
-	Rows      []rosterRow
-	Classes   []models.Class
-	Filters   rosterFilters
-	HasResult bool
-	Answers   map[uint][]string // regID -> ["Label: Answer", ...]
+	Title          string
+	Rows           []rosterRow
+	Classes        []models.Class
+	ClassQuestions []models.ClassQuestion
+	Filters        rosterFilters
+	HasResult      bool
+	Answers        map[uint][]string // regID -> ["Label: Answer", ...]
 }
 
 type rosterFilters struct {
-	From    string
-	To      string
-	ClassID string
-	Status  string
-	Q       string
+	From       string
+	To         string
+	ClassID    string
+	Status     string
+	Q          string
+	QuestionID string
+	QuestionAns string
 }
 
 func onlyDigits(s string) string {
@@ -97,11 +100,13 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
     template.Must(view.ParseFiles("templates/pages/admin/roster.tmpl"))
 
     return func(w http.ResponseWriter, r *http.Request) {
-        fFrom    := r.URL.Query().Get("from")
-        fTo      := r.URL.Query().Get("to")
-        fClassID := r.URL.Query().Get("class_id")
-        fStatus  := r.URL.Query().Get("status")
-        fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
+        fFrom        := r.URL.Query().Get("from")
+        fTo          := r.URL.Query().Get("to")
+        fClassID     := r.URL.Query().Get("class_id")
+        fStatus      := r.URL.Query().Get("status")
+        fQ           := strings.TrimSpace(r.URL.Query().Get("q"))
+        fQuestionID  := r.URL.Query().Get("question_id")
+        fQuestionAns := strings.TrimSpace(r.URL.Query().Get("question_ans"))
 
         // Default window: last 30 days to +300 days
         now := time.Now()
@@ -113,6 +118,17 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
 		}
         var classes []models.Class
         _ = db.Conn().Order("date asc").Find(&classes).Error
+
+        // Load questions for the selected class (for the filter dropdown)
+        var classQuestions []models.ClassQuestion
+        if fClassID != "" {
+            if cid, err := strconv.Atoi(fClassID); err == nil && cid > 0 {
+                _ = db.Conn().
+                    Where("class_id = ?", cid).
+                    Order("position ASC, id ASC").
+                    Find(&classQuestions).Error
+            }
+        }
 
         q := db.Conn().Table("registrations").
             Select(`registrations.id, registrations.code, registrations.status, registrations.check_in_at, registrations.created_at,
@@ -159,6 +175,16 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
                 REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(parents.phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
             `
             q = q.Where(where, like, like, like, like, digitsLike)
+        }
+
+        if fQuestionID != "" && fQuestionAns != "" {
+            if qid, err := strconv.Atoi(fQuestionID); err == nil && qid > 0 {
+                ansLike := "%" + strings.ToLower(fQuestionAns) + "%"
+                q = q.Joins(
+                    "JOIN registration_answers AS raq_f ON raq_f.registration_id = registrations.id AND raq_f.question_id = ? AND LOWER(raq_f.answer) LIKE ?",
+                    qid, ansLike,
+                )
+            }
         }
 
         var rows []rosterRow
@@ -304,15 +330,18 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
         }
 
         vm := rosterPageVM{
-            Title:   "Admin • Roster",
-            Rows:    rows,
-            Classes: classes,
+            Title:          "Admin • Roster",
+            Rows:           rows,
+            Classes:        classes,
+            ClassQuestions: classQuestions,
             Filters: rosterFilters{
-                From:    fFrom,
-                To:      fTo,
-                ClassID: fClassID,
-                Status:  fStatus,
-                Q:       fQ,
+                From:        fFrom,
+                To:          fTo,
+                ClassID:     fClassID,
+                Status:      fStatus,
+                Q:           fQ,
+                QuestionID:  fQuestionID,
+                QuestionAns: fQuestionAns,
             },
             HasResult: len(rows) > 0,
             Answers:   answers,
