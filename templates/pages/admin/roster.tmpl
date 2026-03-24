@@ -39,38 +39,20 @@
              class="w-full rounded-xl border p-2">
     </div>
   </div>
-  {{if .ClassQuestions}}
-  <div class="grid md:grid-cols-2 gap-3 mb-3">
-    <div>
-      <label class="block text-xs text-gray-600 mb-1">Question</label>
-      <select name="question_id" class="w-full rounded-xl border p-2">
-        <option value="">— Any —</option>
-        {{range .ClassQuestions}}
-          <option value="{{.ID}}" {{if eq (printf "%d" .ID) $.Filters.QuestionID}}selected{{end}}>{{.Label}}</option>
-        {{end}}
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs text-gray-600 mb-1">Answer contains</label>
-      <input name="question_ans" value="{{.Filters.QuestionAns}}" placeholder="e.g. SD, TK A…"
-             class="w-full rounded-xl border p-2">
-    </div>
-  </div>
-  {{else if .Filters.ClassID}}
-  {{/* class selected but no questions — keep hidden fields so values persist */}}
-  <input type="hidden" name="question_id" value="">
-  <input type="hidden" name="question_ans" value="">
-  {{end}}
   <div class="flex gap-2 items-center">
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm">Apply</button>
     <a class="px-4 py-2 rounded-xl border text-sm" href="/admin/roster">Clear</a>
     <a class="px-4 py-2 rounded-xl border text-sm ml-auto"
-       href="/admin/roster.csv?from={{.Filters.From}}&to={{.Filters.To}}&class_id={{.Filters.ClassID}}&status={{.Filters.Status}}&q={{.Filters.Q}}&question_id={{.Filters.QuestionID}}&question_ans={{.Filters.QuestionAns}}">Export CSV</a>
+       href="/admin/roster.csv?from={{.Filters.From}}&to={{.Filters.To}}&class_id={{.Filters.ClassID}}&status={{.Filters.Status}}&q={{.Filters.Q}}">Export CSV</a>
   </div>
 </form>
 
-<div class="mb-3 text-sm text-gray-600">
-  Showing {{len .Rows}} result(s)
+<div class="flex items-center gap-3 mb-3">
+  <span class="text-sm text-gray-600">Showing <span id="rowCount">{{len .Rows}}</span> result(s)</span>
+  {{if .HasResult}}
+  <input id="liveFilter" type="text" placeholder="Filter rows…"
+         class="ml-auto rounded-xl border px-3 py-1.5 text-sm w-56">
+  {{end}}
 </div>
 
 <div class="bg-white border rounded-2xl overflow-x-auto">
@@ -241,6 +223,22 @@
       sortBy(colIdx);
     });
   });
+
+  // Live filter
+  const filterInput = document.getElementById('liveFilter');
+  const rowCountEl  = document.getElementById('rowCount');
+  if (filterInput) {
+    filterInput.addEventListener('input', () => {
+      const kw = filterInput.value.toLowerCase().trim();
+      let visible = 0;
+      Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+        const match = !kw || tr.innerText.toLowerCase().includes(kw);
+        tr.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      if (rowCountEl) rowCountEl.textContent = visible;
+    });
+  }
 })();
 </script>
 
