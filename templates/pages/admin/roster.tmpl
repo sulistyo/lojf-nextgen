@@ -224,7 +224,8 @@
     });
   });
 
-  // Live filter
+  // Live filter — search only Child, Answers, Parent, Code columns (skip Class col)
+  const SEARCH_COLS = [2, 3, 4, 5]; // Child, Answers, Parent, Code
   const filterInput = document.getElementById('liveFilter');
   const rowCountEl  = document.getElementById('rowCount');
   if (filterInput) {
@@ -232,7 +233,10 @@
       const kw = filterInput.value.toLowerCase().trim();
       let visible = 0;
       Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
-        const match = !kw || tr.innerText.toLowerCase().includes(kw);
+        const match = !kw || SEARCH_COLS.some(i => {
+          const td = tr.children[i];
+          return td && td.innerText.toLowerCase().includes(kw);
+        });
         tr.style.display = match ? '' : 'none';
         if (match) visible++;
       });

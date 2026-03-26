@@ -154,11 +154,10 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
             where := `
                 LOWER(children.name)       LIKE ? OR
                 LOWER(parents.name)        LIKE ? OR
-                LOWER(classes.name)        LIKE ? OR
                 LOWER(registrations.code)  LIKE ? OR
                 REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(parents.phone,'+',''),' ',''),'-',''),'(',''),')','') LIKE ?
             `
-            q = q.Where(where, like, like, like, like, digitsLike)
+            q = q.Where(where, like, like, like, digitsLike)
         }
 
         var rows []rosterRow
