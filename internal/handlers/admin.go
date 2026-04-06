@@ -1,14 +1,17 @@
 package handlers
 
 import (
-	"github.com/lojf/nextgen/internal/db"
-	"github.com/lojf/nextgen/internal/models"
 	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 	"gorm.io/gorm"
+
+	"github.com/lojf/nextgen/internal/db"
+	"github.com/lojf/nextgen/internal/models"
 )
 
 // put this near the top of the file or in a shared helpers file
@@ -28,18 +31,75 @@ func AdminClasses(t *template.Template) http.HandlerFunc {
 	view := template.Must(t.Clone())
 	template.Must(view.ParseFiles("templates/pages/admin/classes.tmpl"))
 
+	type classRow struct {
+		models.Class
+		RegCount int
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var classes []models.Class
 		if err := db.Conn().Order("date desc").Find(&classes).Error; err != nil {
 			http.Error(w, "db error", 500)
 			return
 		}
-		data := map[string]any{"Title": "Admin • Classes", "Classes": classes}
+
+		// Count non-canceled registrations per class
+		type countRow struct {
+			ClassID uint
+			Total   int
+		}
+		var counts []countRow
+		_ = db.Conn().Table("registrations").
+			Select("class_id, COUNT(*) as total").
+			Where("status != ?", "canceled").
+			Group("class_id").
+			Scan(&counts).Error
+		countMap := map[uint]int{}
+		for _, c := range counts {
+			countMap[c.ClassID] = c.Total
+		}
+
+		rows := make([]classRow, len(classes))
+		for i, cl := range classes {
+			rows[i] = classRow{Class: cl, RegCount: countMap[cl.ID]}
+		}
+
+		data := map[string]any{
+			"Title":   "Admin • Classes",
+			"Classes": rows,
+			"Flash":   MakeFlash(r, "", ""),
+		}
 		if err := view.ExecuteTemplate(w, "admin/classes.tmpl", data); err != nil {
 			http.Error(w, err.Error(), 500)
-			return
 		}
 	}
+}
+
+// POST /admin/classes/{id}/delete
+func AdminDeleteClass(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(chi.URLParam(r, "id"))
+
+	var class models.Class
+	if err := db.Conn().First(&class, id).Error; err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	var count int64
+	db.Conn().Model(&models.Registration{}).
+		Where("class_id = ? AND status != ?", id, "canceled").
+		Count(&count)
+
+	if count > 0 {
+		http.Redirect(w, r, "/admin/classes?error=has_roster", http.StatusSeeOther)
+		return
+	}
+
+	// Safe to delete — remove questions and class
+	db.Conn().Where("class_id = ?", id).Delete(&models.ClassQuestion{})
+	db.Conn().Delete(&class)
+
+	http.Redirect(w, r, "/admin/classes?ok=deleted", http.StatusSeeOther)
 }
 
 

@@ -98,6 +98,7 @@ func Router() http.Handler {
 			ag.Post("/classes", handlers.AdminCreateClass)
 			ag.Get("/classes/{id}/edit", handlers.AdminEditClassForm(tmpl))
 			ag.Post("/classes/{id}", handlers.AdminUpdateClass)
+			ag.Post("/classes/{id}/delete", handlers.AdminDeleteClass)
 
 			// Roster & Capacity
 			ag.Get("/roster", handlers.AdminRoster(tmpl))

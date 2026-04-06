@@ -1,6 +1,7 @@
 {{define "content"}}
 <h1 class="text-2xl font-bold mb-4">Admin • Classes</h1>
 {{template "admin_nav" .}}
+{{template "flash" .}}
 
 <div class="mb-3">
   <a class="px-3 py-2 rounded-xl bg-gray-900 text-white" href="/admin/classes/new">New Class</a>
@@ -13,6 +14,7 @@
         <th class="py-2 px-3">Date</th>
         <th class="py-2 px-3">Name</th>
         <th class="py-2 px-3">Capacity</th>
+        <th class="py-2 px-3">Registrations</th>
         <th class="py-2 px-3">Actions</th>
       </tr>
     </thead>
@@ -22,9 +24,18 @@
         <td class="py-2 px-3 whitespace-nowrap">{{jdate .Date}}</td>
         <td class="py-2 px-3">{{nl2br .Name}}</td>
         <td class="py-2 px-3">{{.Capacity}}</td>
+        <td class="py-2 px-3">{{.RegCount}}</td>
         <td class="py-2 px-3 space-x-3 whitespace-nowrap">
           <a class="text-sm underline" href="/admin/roster?class_id={{.ID}}">Roster</a>
           <a class="text-sm underline" href="/admin/classes/{{.ID}}/edit">Edit</a>
+          {{if eq .RegCount 0}}
+            <form method="POST" action="/admin/classes/{{.ID}}/delete" style="display:inline"
+                  onsubmit="return confirm('Delete this class permanently?')">
+              <button class="text-sm underline text-red-600">Delete</button>
+            </form>
+          {{else}}
+            <span class="text-sm text-gray-400" title="Delete all roster entries first">Delete</span>
+          {{end}}
         </td>
       </tr>
       {{end}}
