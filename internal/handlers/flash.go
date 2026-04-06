@@ -17,6 +17,7 @@ var okText = map[string]string{
 	"child_deleted": "Child deleted.",
 	"registered":    "Registration completed.",
 	"checked_in":    "Checked in.",
+	"deleted":        "Class deleted.",
 	"canceled":      "Registration canceled.",
 	"linked":        "Telegram linked.",
 	"unlinked":      "Telegram has been unlinked.",
@@ -35,6 +36,7 @@ var errText = map[string]string{
 	"invalid_checkin":     "Code is not eligible for check-in.",
 	"already_checkedin":   "Already checked in.",
 	"has_future":          "Cannot delete: parent has upcoming registrations. Cancel them first.",
+	"has_roster":          "Cannot delete: class still has active registrations. Delete all roster entries first.",
 }
 
 // MakeFlash reads query params and/or explicit strings to build a Flash.
