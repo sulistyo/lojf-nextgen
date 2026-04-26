@@ -24,6 +24,7 @@ func Router() http.Handler {
 	// Public pages
 	r.Get("/", handlers.Home(tmpl))
 	r.Get("/health", handlers.Health)
+	r.Get("/healthz", handlers.Health)
 	r.Get("/version", handlers.Version)
 	r.Post("/tg/webhook", handlers.TelegramWebhook)
 	r.Get("/switch-number", handlers.SwitchNumber)
