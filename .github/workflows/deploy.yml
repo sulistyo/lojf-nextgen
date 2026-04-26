@@ -14,4 +14,9 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          script: ~/deploy.sh
+          script: |
+            if [ -x "$HOME/apps/lojf/deploy/deploy.sh" ]; then
+              APP_DIR="$HOME/apps/lojf" BRANCH=main bash "$HOME/apps/lojf/deploy/deploy.sh"
+            else
+              ~/deploy.sh
+            fi
