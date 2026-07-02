@@ -78,6 +78,28 @@ func parseDate(s string, def time.Time) time.Time {
 	return t
 }
 
+var rosterLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return time.FixedZone("WIB", 7*3600)
+	}
+	return loc
+}()
+
+// rosterWindow parses from/to (YYYY-MM-DD) as Jakarta calendar days and returns
+// an inclusive UTC window [start-of-from-day, end-of-to-day] for filtering
+// classes.date. Class dates are stored at Jakarta midnight, so a naive UTC-midnight
+// bound drops same-day classes (e.g. a single-day "23 Mei" filter returned blank).
+func rosterWindow(fFrom, fTo string) (time.Time, time.Time) {
+	nowJ := time.Now().In(rosterLoc)
+	today := time.Date(nowJ.Year(), nowJ.Month(), nowJ.Day(), 0, 0, 0, 0, rosterLoc)
+	fromJ := parseDate(fFrom, today.AddDate(0, 0, -7))
+	toJ := parseDate(fTo, today.AddDate(0, 0, 300))
+	from := time.Date(fromJ.Year(), fromJ.Month(), fromJ.Day(), 0, 0, 0, 0, rosterLoc).UTC()
+	to := time.Date(toJ.Year(), toJ.Month(), toJ.Day(), 23, 59, 59, 0, rosterLoc).UTC()
+	return from, to
+}
+
 func statusWeight(s string) int {
 	switch s {
 	case "confirmed":
@@ -103,13 +125,11 @@ func AdminRoster(t *template.Template) http.HandlerFunc {
         fStatus  := r.URL.Query().Get("status")
         fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
 
-        // Default window: last 30 days to +300 days
-        now := time.Now()
-        from := parseDate(fFrom, now.AddDate(0, 0, -7))
-        to   := parseDate(fTo,   now.AddDate(0, 0, 300))
+        // Jakarta day-boundary window, inclusive end-of-day (matches capacity view).
+        from, to := rosterWindow(fFrom, fTo)
 
 		if fFrom == "" {
-			fFrom = from.Format("2006-01-02")
+			fFrom = from.In(rosterLoc).Format("2006-01-02")
 		}
         var classes []models.Class
         _ = db.Conn().Order("date asc").Find(&classes).Error
@@ -330,9 +350,7 @@ func AdminRosterCSV(w http.ResponseWriter, r *http.Request) {
 	fStatus  := r.URL.Query().Get("status")
 	fQ       := strings.TrimSpace(r.URL.Query().Get("q"))
 
-	now  := time.Now()
-	from := parseDate(fFrom, now.AddDate(0, 0, -7))
-	to   := parseDate(fTo,   now.AddDate(0, 0,  300)) // MATCH AdminRoster
+	from, to := rosterWindow(fFrom, fTo) // MATCH AdminRoster: Jakarta window, inclusive end-of-day
 
 	type csvRow struct {
 		ID          uint
