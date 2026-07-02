@@ -18,8 +18,26 @@ type attendanceRow struct {
 	ParentName  string
 	ParentPhone string
 	Attended    int64 // distinct class sessions checked-in within the period
-	LastAt      *time.Time
 	LastStr     string
+}
+
+// checkInDateStr formats a raw check_in_at string (as stored by SQLite, e.g.
+// "2026-06-27 17:16:21.61+07:00") into the dd-mm-yyyy Jakarta date used across
+// the admin UI. Falls back to the leading date portion if the layout differs.
+func checkInDateStr(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if ts, err := time.Parse("2006-01-02 15:04:05.999999999-07:00", raw); err == nil {
+		return fmtDate(ts)
+	}
+	if len(raw) >= 10 {
+		if d, err := time.Parse("2006-01-02", raw[:10]); err == nil {
+			return fmtDate(d)
+		}
+		return raw[:10]
+	}
+	return raw
 }
 
 type attendanceVM struct {
@@ -56,7 +74,7 @@ func queryAttendance(fromUTC, toUTC time.Time) ([]attendanceRow, error) {
 		ParentName  string
 		ParentPhone string
 		Attended    int64
-		LastAt      *time.Time
+		LastAt      string
 	}
 	var aggs []attAgg
 	err := db.Conn().Table("registrations").
@@ -78,19 +96,15 @@ func queryAttendance(fromUTC, toUTC time.Time) ([]attendanceRow, error) {
 
 	rows := make([]attendanceRow, 0, len(aggs))
 	for i, a := range aggs {
-		row := attendanceRow{
+		rows = append(rows, attendanceRow{
 			Rank:        i + 1,
 			ChildID:     a.ChildID,
 			ChildName:   a.ChildName,
 			ParentName:  a.ParentName,
 			ParentPhone: a.ParentPhone,
 			Attended:    a.Attended,
-			LastAt:      a.LastAt,
-		}
-		if a.LastAt != nil {
-			row.LastStr = fmtDate(*a.LastAt)
-		}
-		rows = append(rows, row)
+			LastStr:     checkInDateStr(a.LastAt),
+		})
 	}
 	return rows, nil
 }
