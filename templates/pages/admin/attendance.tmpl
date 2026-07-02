@@ -1,0 +1,60 @@
+{{define "content"}}
+<h1 class="text-2xl font-bold mb-4">Admin • Attendance</h1>
+{{template "admin_nav" .}}
+
+<form method="GET" class="bg-white p-4 border rounded-2xl grid md:grid-cols-4 gap-3 mb-4">
+  <div>
+    <label class="block text-xs text-gray-600 mb-1">From</label>
+    <input type="date" name="from" value="{{.From}}" class="w-full rounded-xl border p-2">
+  </div>
+  <div>
+    <label class="block text-xs text-gray-600 mb-1">To</label>
+    <input type="date" name="to" value="{{.To}}" class="w-full rounded-xl border p-2">
+  </div>
+  <div class="flex items-end gap-2">
+    <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Apply</button>
+    <a href="/admin/attendance.csv?from={{.From}}&to={{.To}}" class="px-3 py-2 rounded-xl border">Export CSV</a>
+  </div>
+</form>
+
+<div class="grid md:grid-cols-2 gap-3 mb-4">
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">Students who attended</div>
+    <div class="text-2xl font-semibold">{{.Summary.Students}}</div>
+  </div>
+  <div class="bg-white border rounded-2xl p-4">
+    <div class="text-xs text-gray-500">Total attendances (check-ins)</div>
+    <div class="text-2xl font-semibold">{{.Summary.Attendances}}</div>
+  </div>
+</div>
+
+<div class="bg-white border rounded-2xl overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-left text-gray-500">
+      <tr>
+        <th class="py-2 px-3">#</th>
+        <th class="py-2 px-3">Child</th>
+        <th class="py-2 px-3">Parent</th>
+        <th class="py-2 px-3">Phone</th>
+        <th class="py-2 px-3 text-right">Times attended</th>
+        <th class="py-2 px-3">Last attended</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr class="border-t">
+        <td class="py-2 px-3 text-gray-400">{{.Rank}}</td>
+        <td class="py-2 px-3 font-medium">{{.ChildName}}</td>
+        <td class="py-2 px-3">{{.ParentName}}</td>
+        <td class="py-2 px-3 whitespace-nowrap">{{.ParentPhone}}</td>
+        <td class="py-2 px-3 text-right font-semibold">{{.Attended}}</td>
+        <td class="py-2 px-3 whitespace-nowrap">{{.LastStr}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6" class="py-6 px-3 text-center text-gray-500">No attendance in this period.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{define "admin/attendance.tmpl"}}{{template "base" .}}{{end}}

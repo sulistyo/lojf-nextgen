@@ -107,6 +107,10 @@ func Router() http.Handler {
 			ag.Get("/roster.csv", handlers.AdminRosterCSV)
 			ag.Get("/capacity", handlers.AdminCapacity(tmpl))
 
+			// Attendance report (per-student check-in frequency)
+			ag.Get("/attendance", handlers.AdminAttendance(tmpl))
+			ag.Get("/attendance.csv", handlers.AdminAttendanceCSV)
+
 			// Registration actions
 			ag.Post("/registrations/{id}/checkin", handlers.AdminRegCheckin)
 			ag.Post("/registrations/{id}/cancel", handlers.AdminRegCancel)
