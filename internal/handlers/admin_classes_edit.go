@@ -14,6 +14,17 @@ import (
 	svc "github.com/lojf/nextgen/internal/services"
 )
 
+// normalizeClassName trims surrounding whitespace, collapses internal
+// whitespace runs to a single space, and removes stray spaces just inside
+// parentheses. Keeps class names consistent so filters/grouping don't split
+// on near-duplicates like "FJU Awesome Kids ( Feast Jakarta Utara)".
+func normalizeClassName(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.ReplaceAll(s, "( ", "(")
+	s = strings.ReplaceAll(s, " )", ")")
+	return s
+}
+
 // GET /admin/classes/{id}/edit
 func AdminEditClassForm(t *template.Template) http.HandlerFunc {
 	view := template.Must(t.Clone())
@@ -71,7 +82,7 @@ func AdminUpdateClass(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ----- Class fields -----
-	name := r.FormValue("name")
+	name := normalizeClassName(r.FormValue("name"))
 	date := r.FormValue("date")     // YYYY-MM-DD
 	timeStr := r.FormValue("time")  // optional HH:MM
 	capStr := r.FormValue("capacity")

@@ -148,7 +148,7 @@ func AdminCreateClass(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dateStr := r.FormValue("date")
-	name    := r.FormValue("name")
+	name    := normalizeClassName(r.FormValue("name"))
 	capStr  := r.FormValue("capacity")
 	desc    := r.FormValue("description")
 
