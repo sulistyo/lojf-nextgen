@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lojf/nextgen/internal/db"
+	"github.com/lojf/nextgen/internal/models"
 )
 
 type attendanceRow struct {
@@ -41,14 +42,26 @@ func checkInDateStr(raw string) string {
 }
 
 type attendanceVM struct {
-	Title   string
-	Rows    []attendanceRow
-	From    string
-	To      string
-	Summary struct {
+	Title      string
+	Rows       []attendanceRow
+	From       string
+	To         string
+	Class      string   // selected class-name filter ("" = all)
+	ClassNames []string // distinct class names for the dropdown
+	Summary    struct {
 		Students    int
 		Attendances int64
 	}
+}
+
+// distinctClassNames returns the sorted set of class names for the filter dropdown.
+func distinctClassNames() []string {
+	var names []string
+	_ = db.Conn().Model(&models.Class{}).
+		Distinct("name").
+		Order("name asc").
+		Pluck("name", &names).Error
+	return names
 }
 
 // attendanceWindow parses from/to (YYYY-MM-DD) as Jakarta calendar days and
@@ -67,7 +80,7 @@ func attendanceWindow(fFrom, fTo string) (fromUTC, toUTC time.Time, fromStr, toS
 
 // queryAttendance returns per-child attendance counts (check-ins) for classes
 // whose date falls inside [fromUTC, toUTC], sorted by most frequent first.
-func queryAttendance(fromUTC, toUTC time.Time) ([]attendanceRow, error) {
+func queryAttendance(fromUTC, toUTC time.Time, className string) ([]attendanceRow, error) {
 	type attAgg struct {
 		ChildID     uint
 		ChildName   string
@@ -76,8 +89,7 @@ func queryAttendance(fromUTC, toUTC time.Time) ([]attendanceRow, error) {
 		Attended    int64
 		LastAt      string
 	}
-	var aggs []attAgg
-	err := db.Conn().Table("registrations").
+	q := db.Conn().Table("registrations").
 		Select(`children.id AS child_id, children.name AS child_name,
 			parents.name AS parent_name, parents.phone AS parent_phone,
 			COUNT(DISTINCT registrations.class_id) AS attended,
@@ -86,8 +98,14 @@ func queryAttendance(fromUTC, toUTC time.Time) ([]attendanceRow, error) {
 		Joins("JOIN classes  ON classes.id  = registrations.class_id").
 		Joins("JOIN parents  ON parents.id  = registrations.parent_id").
 		Where("registrations.check_in_at IS NOT NULL").
-		Where("classes.date BETWEEN ? AND ?", fromUTC, toUTC).
-		Group("children.id").
+		Where("classes.date BETWEEN ? AND ?", fromUTC, toUTC)
+
+	if className != "" {
+		q = q.Where("classes.name = ?", className)
+	}
+
+	var aggs []attAgg
+	err := q.Group("children.id").
 		Order("attended DESC, child_name ASC").
 		Scan(&aggs).Error
 	if err != nil {
@@ -117,14 +135,18 @@ func AdminAttendance(t *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fromUTC, toUTC, fromStr, toStr := attendanceWindow(
 			r.URL.Query().Get("from"), r.URL.Query().Get("to"))
+		className := r.URL.Query().Get("class")
 
-		rows, err := queryAttendance(fromUTC, toUTC)
+		rows, err := queryAttendance(fromUTC, toUTC, className)
 		if err != nil {
 			http.Error(w, "db error", http.StatusInternalServerError)
 			return
 		}
 
-		vm := attendanceVM{Title: "Admin • Attendance", Rows: rows, From: fromStr, To: toStr}
+		vm := attendanceVM{
+			Title: "Admin • Attendance", Rows: rows, From: fromStr, To: toStr,
+			Class: className, ClassNames: distinctClassNames(),
+		}
 		vm.Summary.Students = len(rows)
 		for _, rr := range rows {
 			vm.Summary.Attendances += rr.Attended
@@ -141,8 +163,9 @@ func AdminAttendance(t *template.Template) http.HandlerFunc {
 func AdminAttendanceCSV(w http.ResponseWriter, r *http.Request) {
 	fromUTC, toUTC, fromStr, toStr := attendanceWindow(
 		r.URL.Query().Get("from"), r.URL.Query().Get("to"))
+	className := r.URL.Query().Get("class")
 
-	rows, err := queryAttendance(fromUTC, toUTC)
+	rows, err := queryAttendance(fromUTC, toUTC, className)
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return

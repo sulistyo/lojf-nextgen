@@ -11,9 +11,18 @@
     <label class="block text-xs text-gray-600 mb-1">To</label>
     <input type="date" name="to" value="{{.To}}" class="w-full rounded-xl border p-2">
   </div>
+  <div>
+    <label class="block text-xs text-gray-600 mb-1">Class</label>
+    <select name="class" class="w-full rounded-xl border p-2">
+      <option value="">All classes</option>
+      {{range .ClassNames}}
+        <option value="{{.}}" {{if eq . $.Class}}selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+  </div>
   <div class="flex items-end gap-2">
     <button class="px-3 py-2 rounded-xl bg-gray-900 text-white">Apply</button>
-    <a href="/admin/attendance.csv?from={{.From}}&to={{.To}}" class="px-3 py-2 rounded-xl border">Export CSV</a>
+    <a href="/admin/attendance.csv?from={{.From}}&to={{.To}}&class={{.Class}}" class="px-3 py-2 rounded-xl border">Export CSV</a>
   </div>
 </form>
 
