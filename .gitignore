@@ -18,12 +18,16 @@ coverage.out
 
 # SQLite / DBs
 *.db
+*.db.gz
 *.sqlite
 *.sqlite3
 *-journal
 *-wal
 *-shm
 lojf.db
+
+# Local DB backups (offsite copies pulled from prod)
+backups/
 
 # Logs & runtime
 logs/
