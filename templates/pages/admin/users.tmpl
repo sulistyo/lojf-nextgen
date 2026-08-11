@@ -1,0 +1,84 @@
+{{define "content"}}
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-2xl font-bold mb-1">Akun</h1>
+  <p class="text-gray-600 mb-4 text-sm">
+    Akun <strong>admin</strong> per orang. Akun <strong>checkin</strong> generic dan dipakai bersama
+    volunteer, dikunci ke satu campus dan hanya bisa check-in kelas hari itu.
+  </p>
+
+  {{template "flash" .}}
+
+  <div class="bg-white border rounded-2xl overflow-hidden mb-6">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-left">
+        <tr>
+          <th class="px-4 py-2">Username</th>
+          <th class="px-4 py-2">Role</th>
+          <th class="px-4 py-2">Campus</th>
+          <th class="px-4 py-2">Login terakhir</th>
+          <th class="px-4 py-2">Status</th>
+          <th class="px-4 py-2">Ganti password</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        {{range .Users}}
+        <tr>
+          <td class="px-4 py-2 font-medium">
+            {{.Username}}{{if eq .Username $.Me}} <span class="text-xs text-gray-500">(kamu)</span>{{end}}
+          </td>
+          <td class="px-4 py-2">{{.Role}}</td>
+          <td class="px-4 py-2">{{if .Campus}}{{.Campus}}{{else}}—{{end}}</td>
+          <td class="px-4 py-2 text-gray-600">{{.LastLoginStr}}</td>
+          <td class="px-4 py-2">
+            <form method="POST" action="/admin/users/{{.ID}}/toggle">
+              {{if .Active}}
+                <button class="text-green-700 underline">aktif</button>
+              {{else}}
+                <button class="text-gray-400 underline">nonaktif</button>
+              {{end}}
+            </form>
+          </td>
+          <td class="px-4 py-2">
+            <form method="POST" action="/admin/users/{{.ID}}/password" class="flex gap-1">
+              <input name="password" type="password" placeholder="min 8 karakter" minlength="8" required
+                     class="rounded border p-1 w-36">
+              <button class="px-2 py-1 rounded bg-gray-900 text-white text-xs">Set</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-white border rounded-2xl p-4">
+    <h2 class="font-semibold mb-3">Tambah akun</h2>
+    <form method="POST" action="/admin/users" class="grid sm:grid-cols-5 gap-2 items-end">
+      <div class="sm:col-span-1">
+        <label class="block text-xs text-gray-600 mb-1">Username</label>
+        <input name="username" required autocapitalize="none" class="w-full rounded border p-2">
+      </div>
+      <div class="sm:col-span-1">
+        <label class="block text-xs text-gray-600 mb-1">Password</label>
+        <input name="password" type="password" minlength="8" required class="w-full rounded border p-2">
+      </div>
+      <div class="sm:col-span-1">
+        <label class="block text-xs text-gray-600 mb-1">Role</label>
+        <select name="role" class="w-full rounded border p-2">
+          {{range .Roles}}<option value="{{.}}">{{.}}</option>{{end}}
+        </select>
+      </div>
+      <div class="sm:col-span-1">
+        <label class="block text-xs text-gray-600 mb-1">Campus (checkin saja)</label>
+        <select name="campus" class="w-full rounded border p-2">
+          {{range .Campus}}<option value="{{.}}">{{if .}}{{.}}{{else}}semua{{end}}</option>{{end}}
+        </select>
+      </div>
+      <div class="sm:col-span-1">
+        <button class="w-full px-4 py-2 rounded-xl bg-gray-900 text-white">Buat</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+{{define "admin/users.tmpl"}}{{template "base" .}}{{end}}

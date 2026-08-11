@@ -7,6 +7,7 @@ import (
 
 	"github.com/lojf/nextgen/internal/bot"
 	"github.com/lojf/nextgen/internal/db"
+	"github.com/lojf/nextgen/internal/handlers"
 	"github.com/lojf/nextgen/internal/web"
 )
 
@@ -14,6 +15,10 @@ func main() {
 	// Init DB (creates nextgen.db in working dir)
 	if err := db.Init(); err != nil {
 		log.Fatalf("db init: %v", err)
+	}
+	// Make sure a fresh install has a way in.
+	if err := handlers.EnsureBootstrapAdmin(db.Conn()); err != nil {
+		log.Fatalf("bootstrap admin: %v", err)
 	}
 	bot.StartReminderLoop()
 

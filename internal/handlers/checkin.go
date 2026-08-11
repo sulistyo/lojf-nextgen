@@ -99,13 +99,27 @@ func CheckinConfirm(t *template.Template) http.HandlerFunc {
 			http.Redirect(w, r, "/checkin?error=already_checkedin&code="+code, http.StatusSeeOther)
 			return
 		}
+		// Same fence as the roster button: check-in accounts may only mark
+		// attendance for today's classes at their own campus.
+		var class models.Class
+		if err := db.Conn().First(&class, reg.ClassID).Error; err != nil {
+			http.Redirect(w, r, "/checkin?error=invalid_checkin&code="+code, http.StatusSeeOther)
+			return
+		}
+		if err := guardCheckin(CurrentUser(r), class); err != nil {
+			writeAudit(r, nil, "registration.checkin.denied", regTarget(reg), err.Error())
+			http.Redirect(w, r, "/checkin?error=not_allowed&code="+code, http.StatusSeeOther)
+			return
+		}
 
 		now := time.Now()
 		reg.CheckInAt = &now
+		reg.CheckedInBy = actorLabel(r)
 		if err := db.Conn().Save(&reg).Error; err != nil {
 			http.Redirect(w, r, "/checkin?error=invalid_checkin&code="+code, http.StatusSeeOther)
 			return
 		}
+		writeAudit(r, nil, "registration.checkin", regTarget(reg), "class:"+class.Name)
 
 		// success → back to GET so the page can show details + green flash
 		http.Redirect(w, r, "/checkin?ok=checked_in&code="+code, http.StatusSeeOther)

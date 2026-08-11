@@ -1,10 +1,20 @@
 {{define "content"}}
 <div class="max-w-sm mx-auto bg-white border rounded-2xl p-6">
-  <h1 class="text-2xl font-bold mb-4">Admin Login</h1>
+  <h1 class="text-2xl font-bold mb-4">Masuk</h1>
+  {{if .Error}}
+    <div class="mb-3 p-2 rounded bg-red-50 text-red-800 text-sm">
+      {{if eq .Error "locked"}}Terlalu banyak percobaan gagal. Coba lagi 15 menit lagi.
+      {{else}}Username atau password salah.{{end}}
+    </div>
+  {{end}}
   <form method="POST" action="/admin/login" class="grid gap-3">
     <input type="hidden" name="next" value="{{.Next}}">
+    <label class="text-sm text-gray-600">Username</label>
+    <input name="username" type="text" autocomplete="username" autocapitalize="none"
+           class="rounded-xl border p-2" autofocus required>
     <label class="text-sm text-gray-600">Password</label>
-    <input name="password" type="password" class="rounded-xl border p-2" autofocus required>
+    <input name="password" type="password" autocomplete="current-password"
+           class="rounded-xl border p-2" required>
     <button class="px-4 py-2 rounded-xl bg-gray-900 text-white mt-2">Sign in</button>
   </form>
 </div>

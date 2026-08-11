@@ -52,6 +52,10 @@ type Registration struct {
 	Status    string     // confirmed | waitlisted | canceled
 	Code      string     `gorm:"uniqueIndex"` // e.g., REG-123456
 	CheckInAt *time.Time // nil until checked-in
+	// CheckedInBy records who marked this child present. For shared check-in
+	// accounts it holds the volunteer's self-declared shift name, otherwise the
+	// admin username. Empty for rows checked in before this column existed.
+	CheckedInBy string
 }
 
 type ClassQuestion struct {
