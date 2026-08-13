@@ -129,6 +129,15 @@ func AdminUserPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAudit(r, nil, "user.password_reset", "user:"+u.Username, "")
+	// A password reset on a deactivated account succeeds but the account still
+	// cannot log in. Saying only "password diganti" sends people hunting for a
+	// bug that is not there, so say the quiet part out loud.
+	if !u.Active {
+		http.Redirect(w, r, "/admin/users?error=Password+"+u.Username+
+			"+sudah+diganti,+TAPI+akun+ini+NONAKTIF+jadi+belum+bisa+login.+Klik+Aktifkan+dulu.",
+			http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, "/admin/users?ok=password+"+u.Username+"+diganti", http.StatusSeeOther)
 }
 

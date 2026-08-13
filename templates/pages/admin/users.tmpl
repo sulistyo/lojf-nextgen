@@ -22,20 +22,25 @@
       </thead>
       <tbody class="divide-y">
         {{range .Users}}
-        <tr>
-          <td class="px-4 py-2 font-medium">
-            {{.Username}}{{if eq .Username $.Me}} <span class="text-xs text-gray-500">(kamu)</span>{{end}}
+        <tr class="{{if not .Active}}bg-gray-50{{end}}">
+          <td class="px-4 py-2 font-medium {{if not .Active}}text-gray-400 line-through{{end}}">
+            {{.Username}}{{if eq .Username $.Me}} <span class="text-xs text-gray-500 no-underline">(kamu)</span>{{end}}
           </td>
-          <td class="px-4 py-2">{{.Role}}</td>
-          <td class="px-4 py-2">{{if .Campus}}{{.Campus}}{{else}}—{{end}}</td>
-          <td class="px-4 py-2 text-gray-600">{{.LastLoginStr}}</td>
-          <td class="px-4 py-2">
-            <form method="POST" action="/admin/users/{{.ID}}/toggle">
-              {{if .Active}}
-                <button class="text-green-700 underline">aktif</button>
-              {{else}}
-                <button class="text-gray-400 underline">nonaktif</button>
-              {{end}}
+          <td class="px-4 py-2 {{if not .Active}}text-gray-400{{end}}">{{.Role}}</td>
+          <td class="px-4 py-2 {{if not .Active}}text-gray-400{{end}}">{{if .Campus}}{{.Campus}}{{else}}—{{end}}</td>
+          <td class="px-4 py-2 text-gray-500">{{.LastLoginStr}}</td>
+          {{/* State is a badge; the button carries the verb. Showing the current
+               state ON the button made people think they were reading an action. */}}
+          <td class="px-4 py-2 whitespace-nowrap">
+            {{if .Active}}
+              <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs">aktif</span>
+            {{else}}
+              <span class="px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-xs">nonaktif</span>
+            {{end}}
+            <form method="POST" action="/admin/users/{{.ID}}/toggle" class="inline">
+              <button class="ml-2 text-xs underline {{if .Active}}text-red-700{{else}}text-blue-700{{end}}">
+                {{if .Active}}Nonaktifkan{{else}}Aktifkan{{end}}
+              </button>
             </form>
           </td>
           <td class="px-4 py-2">
@@ -44,6 +49,9 @@
                      class="rounded border p-1 w-36">
               <button class="px-2 py-1 rounded bg-gray-900 text-white text-xs">Set</button>
             </form>
+            {{if not .Active}}
+              <p class="text-xs text-gray-500 mt-1">Akun nonaktif — ganti password saja tidak cukup untuk bisa login.</p>
+            {{end}}
           </td>
         </tr>
         {{end}}
