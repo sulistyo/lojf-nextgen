@@ -203,9 +203,18 @@ func clearAdminCookie(w http.ResponseWriter) {
 	})
 }
 
-// isHTTPS reports whether the original client request used TLS, so the Secure
-// flag is set in production but local http:// development still works.
+// isHTTPS reports whether the cookie should carry the Secure flag.
+//
+// Production terminates TLS at Apache and proxies plain HTTP to 127.0.0.1
+// WITHOUT setting X-Forwarded-Proto, so sniffing the request alone would
+// silently leave Secure off. SECURE_COOKIES=1 (already set in the systemd
+// override) is therefore the authoritative signal; the request checks are
+// fallbacks for other deployments.
 func isHTTPS(r *http.Request) bool {
+	switch strings.ToLower(os.Getenv("SECURE_COOKIES")) {
+	case "1", "true", "yes":
+		return true
+	}
 	if r.TLS != nil {
 		return true
 	}
