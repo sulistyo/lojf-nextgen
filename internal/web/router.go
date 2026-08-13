@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/lojf/nextgen/internal/handlers"
+	"github.com/lojf/nextgen/internal/models"
 	"html"
 	"html/template"
 	"net/http"
@@ -71,12 +72,15 @@ func Router() http.Handler {
 	// QR image
 	r.Get("/qr/{code}.png", handlers.QR)
 
-	// --- Admin-guarded alias for QR scans that still hit /checkin ---
-	// This makes /checkin behave the same as /admin/checkin, with admin auth required.
+	// --- Check-in surfaces: reachable by BOTH roles ---
+	// Volunteers get the station and the QR scan screen, nothing else. The
+	// per-registration fence (today only, own campus) lives in guardCheckin.
 	r.Group(func(ad chi.Router) {
-		ad.Use(handlers.RequireAdmin)
+		ad.Use(handlers.RequireRole(models.RoleAdmin, models.RoleCheckin))
 		ad.Get("/checkin", handlers.CheckinForm(tmpl))
 		ad.Post("/checkin", handlers.CheckinConfirm(tmpl))
+		ad.Get("/station", handlers.CheckinStation(tmpl))
+		ad.Post("/station/staff", handlers.CheckinStationStaff)
 	})
 
 	// --- Admin routes (with login + guard) ---
@@ -86,13 +90,17 @@ func Router() http.Handler {
 		ar.Post("/login", handlers.AdminLoginSubmit)
 		ar.Post("/logout", handlers.AdminLogout)
 
-		// Guarded admin pages
-		ar.Group(func(ag chi.Router) {
-			ag.Use(handlers.RequireAdmin)
+		// Shared with the check-in role.
+		ar.Group(func(cg chi.Router) {
+			cg.Use(handlers.RequireRole(models.RoleAdmin, models.RoleCheckin))
+			cg.Get("/checkin", handlers.CheckinForm(tmpl))
+			cg.Post("/checkin", handlers.CheckinConfirm(tmpl))
+			cg.Post("/registrations/{id}/checkin", handlers.AdminRegCheckin)
+		})
 
-			// Canonical admin check-in
-			ag.Get("/checkin", handlers.CheckinForm(tmpl))
-			ag.Post("/checkin", handlers.CheckinConfirm(tmpl))
+		// Admin-only pages
+		ar.Group(func(ag chi.Router) {
+			ag.Use(handlers.RequireRole(models.RoleAdmin))
 
 			// Classes
 			ag.Get("/classes", handlers.AdminClasses(tmpl))
@@ -111,8 +119,7 @@ func Router() http.Handler {
 			ag.Get("/attendance", handlers.AdminAttendance(tmpl))
 			ag.Get("/attendance.csv", handlers.AdminAttendanceCSV)
 
-			// Registration actions
-			ag.Post("/registrations/{id}/checkin", handlers.AdminRegCheckin)
+			// Registration actions (check-in is registered above, shared with volunteers)
 			ag.Post("/registrations/{id}/cancel", handlers.AdminRegCancel)
 			ag.Post("/registrations/{id}/delete", handlers.AdminRegDelete)
 
@@ -134,6 +141,12 @@ func Router() http.Handler {
 			ag.Get("/templates/{id}/edit", handlers.AdminTemplatesEditForm(tmpl))
 			ag.Post("/templates/{id}", handlers.AdminTemplatesUpdate)
 			ag.Post("/templates/{id}/delete", handlers.AdminTemplatesDelete)
+
+			// Account management (rotate volunteer passwords without a redeploy)
+			ag.Get("/users", handlers.AdminUsers(tmpl))
+			ag.Post("/users", handlers.AdminUserCreate)
+			ag.Post("/users/{id}/password", handlers.AdminUserPassword)
+			ag.Post("/users/{id}/toggle", handlers.AdminUserToggle)
 
 			// JSON for prefill
 			ag.Get("/templates/{id}.json", handlers.AdminTemplatesShowJSON)

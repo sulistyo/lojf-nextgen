@@ -37,6 +37,10 @@ var errText = map[string]string{
 	"already_checkedin":   "Already checked in.",
 	"has_future":          "Cannot delete: parent has upcoming registrations. Cancel them first.",
 	"has_roster":          "Cannot delete: class still has active registrations. Delete all roster entries first.",
+	"not_allowed":         "Akun ini tidak boleh check-in kelas tersebut (bukan hari ini, atau beda campus).",
+	"only_confirmed":      "Hanya registrasi CONFIRMED yang bisa di-check-in.",
+	"invalid":             "Username atau password salah.",
+	"locked":              "Terlalu banyak percobaan gagal. Coba lagi 15 menit lagi.",
 }
 
 // MakeFlash reads query params and/or explicit strings to build a Flash.

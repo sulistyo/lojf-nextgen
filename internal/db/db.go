@@ -39,7 +39,10 @@ func Init() error {
 		&models.ClassQuestion{}, 
 		&models.ClassTemplate{}, 
 		&models.ClassTemplateQuestion{},
-		&models.RegistrationAnswer{}, 
+		&models.RegistrationAnswer{},
+		&models.AdminUser{},
+		&models.AuditLog{},
+		&models.AppSetting{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
