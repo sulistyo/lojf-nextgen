@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -78,6 +79,11 @@ func checkinFail(w http.ResponseWriter, r *http.Request, reason string) {
 }
 
 // POST /admin/registrations/{id}/cancel
+//
+// Shared by the admin roster and the volunteer station. Cancelling frees a
+// slot, so the oldest waitlisted child moves up. The check-in role gets the
+// same fence as check-in (today, own campus) and cannot cancel a child who
+// has already been checked in; admins are not fenced.
 func AdminRegCancel(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var reg models.Registration
@@ -85,12 +91,57 @@ func AdminRegCancel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	if err := svc.CancelByCode(reg.Code); err != nil {
+	u := CurrentUser(r)
+	if u != nil && u.Role != models.RoleAdmin {
+		var class models.Class
+		if err := db.Conn().First(&class, reg.ClassID).Error; err != nil {
+			http.Error(w, "class not found", 404)
+			return
+		}
+		if err := guardCheckin(u, class); err != nil {
+			writeAudit(r, nil, "registration.cancel.denied", regTarget(reg), err.Error())
+			checkinFail(w, r, "not_allowed_cancel")
+			return
+		}
+		if reg.CheckInAt != nil {
+			checkinFail(w, r, "cancel_checkedin")
+			return
+		}
+		if reg.Status != "confirmed" && reg.Status != "waitlisted" {
+			checkinFail(w, r, "already_canceled")
+			return
+		}
+	}
+	promoted, err := svc.CancelByCodePromoted(reg.Code)
+	if err != nil {
 		http.Error(w, "unable to cancel", 500)
 		return
 	}
-	writeAudit(r, nil, "registration.cancel", regTarget(reg), "")
+	writeAudit(r, nil, "registration.cancel", regTarget(reg), "promoted:"+promotedNames(promoted))
+
+	if strings.Contains(r.Header.Get("Referer"), "/station") {
+		msg := "Registrasi dibatalkan."
+		if names := promotedNames(promoted); names != "" {
+			msg += " Naik dari waiting list: " + names + "."
+		}
+		http.Redirect(w, r, "/station?ok="+url.QueryEscape(msg), http.StatusSeeOther)
+		return
+	}
 	redirectBack(w, r, "/admin/roster")
+}
+
+// promotedNames lists the children of promoted registrations, comma-joined.
+func promotedNames(promoted []models.Registration) string {
+	if len(promoted) == 0 {
+		return ""
+	}
+	ids := make([]uint, 0, len(promoted))
+	for _, p := range promoted {
+		ids = append(ids, p.ChildID)
+	}
+	var names []string
+	db.Conn().Model(&models.Child{}).Where("id IN ?", ids).Pluck("name", &names)
+	return strings.Join(names, ", ")
 }
 
 // POST /admin/registrations/{id}/delete

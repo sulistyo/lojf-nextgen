@@ -96,6 +96,7 @@ func Router() http.Handler {
 			cg.Get("/checkin", handlers.CheckinForm(tmpl))
 			cg.Post("/checkin", handlers.CheckinConfirm(tmpl))
 			cg.Post("/registrations/{id}/checkin", handlers.AdminRegCheckin)
+			cg.Post("/registrations/{id}/cancel", handlers.AdminRegCancel) // fenced inside for check-in role
 		})
 
 		// Admin-only pages
@@ -120,7 +121,6 @@ func Router() http.Handler {
 			ag.Get("/attendance.csv", handlers.AdminAttendanceCSV)
 
 			// Registration actions (check-in is registered above, shared with volunteers)
-			ag.Post("/registrations/{id}/cancel", handlers.AdminRegCancel)
 			ag.Post("/registrations/{id}/delete", handlers.AdminRegDelete)
 
 			// Families report
@@ -164,6 +164,7 @@ func mustParseTemplates(baseDir string) *template.Template {
 
 	funcs := template.FuncMap{
 		"year":        func() string { return time.Now().Format("2006") },
+		"inc":         func(i int) int { return i + 1 },
 		"jdate":       func(t time.Time) string { return t.In(loc).Format("Mon, 02 Jan 2006") },
 		"jisodate":    func(t time.Time) string { return t.In(loc).Format("2006-01-02") },
 		"jlong":       func(t time.Time) string { return t.In(loc).Format("02 January 2006") }, // 12 January 2012

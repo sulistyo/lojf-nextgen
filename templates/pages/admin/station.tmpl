@@ -52,7 +52,10 @@
       <div class="bg-white border rounded-2xl mb-4 overflow-hidden">
         <div class="flex items-baseline justify-between px-4 py-3 border-b bg-gray-50">
           <h2 class="font-semibold">{{.Name}}</h2>
-          <span class="text-sm text-gray-600">{{.Checked}}/{{.Total}} hadir</span>
+          <span class="text-sm text-gray-600 text-right">
+            {{.Checked}}/{{.Total}} hadir · kapasitas {{.Capacity}}
+            {{if .Waitlist}}<span class="ml-1 text-amber-700 font-medium">· waiting list {{len .Waitlist}}</span>{{end}}
+          </span>
         </div>
         <ul class="divide-y">
           {{range .Kids}}
@@ -63,15 +66,37 @@
                   ✓ {{.TimeStr}}{{if .CheckedInBy}} · {{.CheckedInBy}}{{end}}
                 </span>
               {{else}}
-                <form method="POST" action="/admin/registrations/{{.RegID}}/checkin">
-                  <button class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm whitespace-nowrap">
-                    Check in
-                  </button>
-                </form>
+                <div class="flex gap-2">
+                  <form method="POST" action="/admin/registrations/{{.RegID}}/cancel"
+                        onsubmit="return confirm('Batalkan registrasi {{.ChildName}}? Slot akan diberikan ke waiting list.')">
+                    <button class="px-3 py-2 rounded-xl border text-sm text-red-700 whitespace-nowrap">Batal</button>
+                  </form>
+                  <form method="POST" action="/admin/registrations/{{.RegID}}/checkin">
+                    <button class="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm whitespace-nowrap">
+                      Check in
+                    </button>
+                  </form>
+                </div>
               {{end}}
             </li>
           {{end}}
         </ul>
+        {{if .Waitlist}}
+          <div class="px-4 py-2 border-t bg-amber-50 text-sm font-medium text-amber-800">
+            Waiting list ({{len .Waitlist}}) — urutan naik
+          </div>
+          <ul class="divide-y">
+            {{range $i, $k := .Waitlist}}
+              <li class="flex items-center justify-between px-4 py-3 text-gray-700">
+                <span><span class="text-gray-400 mr-2">#{{inc $i}}</span>{{$k.ChildName}}</span>
+                <form method="POST" action="/admin/registrations/{{$k.RegID}}/cancel"
+                      onsubmit="return confirm('Hapus {{$k.ChildName}} dari waiting list?')">
+                  <button class="px-3 py-2 rounded-xl border text-sm text-red-700 whitespace-nowrap">Batal</button>
+                </form>
+              </li>
+            {{end}}
+          </ul>
+        {{end}}
       </div>
     {{end}}
 
