@@ -4,6 +4,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -60,9 +61,11 @@ type stationKid struct {
 type stationClass struct {
 	ClassID  uint
 	Name     string
+	Capacity int
 	Total    int
 	Checked  int
 	Kids     []stationKid
+	Waitlist []stationKid // FIFO: index 0 is next to move up
 }
 
 type stationVM struct {
@@ -95,6 +98,7 @@ func CheckinStation(t *template.Template) http.HandlerFunc {
 			ChildName   string
 			ClassID     uint
 			ClassName   string
+			Capacity    int
 		}
 		var rows []row
 		q := db.Conn().Table("registrations").
@@ -105,11 +109,13 @@ func CheckinStation(t *template.Template) http.HandlerFunc {
 			        registrations.checked_in_by AS checked_in_by,
 			        children.name AS child_name,
 			        classes.id AS class_id,
-			        classes.name AS class_name`).
+			        classes.name AS class_name,
+			        classes.capacity AS capacity`).
 			Joins("JOIN children ON children.id = registrations.child_id").
 			Joins("JOIN classes  ON classes.id  = registrations.class_id").
-			Where("registrations.status = ?", "confirmed").
+			Where("registrations.status IN ?", []string{"confirmed", "waitlisted"}).
 			Where("classes.date BETWEEN ? AND ?", start, end).
+			// Name order for the confirmed list; the waitlist is re-sorted FIFO below.
 			Order("classes.name ASC, children.name ASC")
 		if err := q.Scan(&rows).Error; err != nil {
 			http.Error(w, err.Error(), 500)
@@ -124,7 +130,7 @@ func CheckinStation(t *template.Template) http.HandlerFunc {
 			}
 			sc := byClass[rw.ClassID]
 			if sc == nil {
-				sc = &stationClass{ClassID: rw.ClassID, Name: rw.ClassName}
+				sc = &stationClass{ClassID: rw.ClassID, Name: rw.ClassName, Capacity: rw.Capacity}
 				byClass[rw.ClassID] = sc
 				order = append(order, rw.ClassID)
 			}
@@ -135,12 +141,23 @@ func CheckinStation(t *template.Template) http.HandlerFunc {
 				CheckInAt:   rw.CheckInAt,
 				CheckedInBy: rw.CheckedInBy,
 			}
+			if rw.Status == "waitlisted" {
+				sc.Waitlist = append(sc.Waitlist, k)
+				continue
+			}
 			if rw.CheckInAt != nil {
 				k.TimeStr = rw.CheckInAt.In(rosterLoc).Format("15:04")
 				sc.Checked++
 			}
 			sc.Total++
 			sc.Kids = append(sc.Kids, k)
+		}
+
+		// Waitlist must show the real promotion order (created_at, id), the same
+		// order services.recomputeClassTxCollect uses.
+		if err := sortWaitlistsFIFO(byClass); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
 		}
 
 		classes := make([]stationClass, 0, len(order))
@@ -170,6 +187,36 @@ func CheckinStation(t *template.Template) http.HandlerFunc {
 			http.Error(w, err.Error(), 500)
 		}
 	}
+}
+
+// sortWaitlistsFIFO reorders each class's waitlist by (created_at, id).
+func sortWaitlistsFIFO(byClass map[uint]*stationClass) error {
+	var ids []uint
+	for _, sc := range byClass {
+		for _, k := range sc.Waitlist {
+			ids = append(ids, k.RegID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var ordered []uint
+	if err := db.Conn().Model(&models.Registration{}).
+		Where("id IN ?", ids).
+		Order("created_at ASC, id ASC").
+		Pluck("id", &ordered).Error; err != nil {
+		return err
+	}
+	rank := make(map[uint]int, len(ordered))
+	for i, id := range ordered {
+		rank[id] = i
+	}
+	for _, sc := range byClass {
+		sort.SliceStable(sc.Waitlist, func(i, j int) bool {
+			return rank[sc.Waitlist[i].RegID] < rank[sc.Waitlist[j].RegID]
+		})
+	}
+	return nil
 }
 
 // POST /station/staff — record who is on duty for this shift.

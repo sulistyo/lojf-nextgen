@@ -37,15 +37,22 @@ INSERT INTO parents (id,name,phone,created_at,updated_at) VALUES (1,'P','0811',d
 INSERT INTO children (id,parent_id,name,created_at,updated_at) VALUES
   (1,1,'Anak Hari Ini',datetime('now'),datetime('now')),
   (2,1,'Anak Besok',datetime('now'),datetime('now')),
-  (3,1,'Anak FJU',datetime('now'),datetime('now'));
+  (3,1,'Anak FJU',datetime('now'),datetime('now')),
+  (4,1,'Anak Penuh',datetime('now'),datetime('now')),
+  (5,1,'Anak Antri',datetime('now'),datetime('now')),
+  (6,1,'Anak Antri Dua',datetime('now'),datetime('now'));
 INSERT INTO classes (id,name,date,capacity,created_at,updated_at) VALUES
   (1,'FJB Awesome Kids (Feast Jakarta Barat)','$TODAY 00:00:00+07:00',60,datetime('now'),datetime('now')),
   (2,'FJB Little Stars (Feast Jakarta Barat)','$TOMO 00:00:00+07:00',60,datetime('now'),datetime('now')),
-  (3,'FJU Stars Club (Feast Jakarta Utara)','$TODAY 00:00:00+07:00',60,datetime('now'),datetime('now'));
+  (3,'FJU Stars Club (Feast Jakarta Utara)','$TODAY 00:00:00+07:00',60,datetime('now'),datetime('now')),
+  (4,'FJB Stars Club (Feast Jakarta Barat)','$TODAY 00:00:00+07:00',1,datetime('now'),datetime('now'));
 INSERT INTO registrations (id,parent_id,child_id,class_id,status,code,created_at,updated_at) VALUES
   (1,1,1,1,'confirmed','REG-TODAY01',datetime('now'),datetime('now')),
   (2,1,2,2,'confirmed','REG-TOMOR01',datetime('now'),datetime('now')),
-  (3,1,3,3,'confirmed','REG-FJU0001',datetime('now'),datetime('now'));
+  (3,1,3,3,'confirmed','REG-FJU0001',datetime('now'),datetime('now')),
+  (4,1,4,4,'confirmed','REG-FULL001',datetime('now','-2 minutes'),datetime('now')),
+  (5,1,5,4,'waitlisted','REG-WAIT001',datetime('now','-1 minutes'),datetime('now')),
+  (6,1,6,4,'waitlisted','REG-WAIT002',datetime('now'),datetime('now'));
 SQL
 
 AJAR="$WORK/admin.jar"; VJAR="$WORK/vol.jar"
@@ -75,8 +82,6 @@ for path in /admin/classes /admin/parents /admin/attendance /admin/families /adm
   check "volunteer BLOCKED from $path" "$code" "403"
 done
 
-code=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/admin/registrations/1/cancel")
-check "volunteer BLOCKED from cancel" "$code" "403"
 code=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/admin/registrations/1/delete")
 check "volunteer BLOCKED from delete" "$code" "403"
 
@@ -103,6 +108,35 @@ got=$(sqlite3 "$WORK/nextgen.db" "SELECT CASE WHEN check_in_at IS NULL THEN 'NUL
 check "volunteer CAN check in today's own-campus class" "$got" "SET"
 by=$(sqlite3 "$WORK/nextgen.db" "SELECT checked_in_by FROM registrations WHERE id=1;")
 check "shift name recorded on the row" "$by" "Rina"
+
+echo
+echo "=== 4b. volunteer cancel: fenced like check-in, frees a slot for the waitlist ==="
+body=$(curl -s -b "$VJAR" "$BASE/station")
+echo "$body" | grep -q "waiting list 2" && ok "station shows waiting list count" || bad "waitlist count" "missing"
+echo "$body" | grep -q "Anak Antri Dua" && ok "station lists waitlisted kids" || bad "waitlist names" "missing"
+
+curl -s -b "$VJAR" -o /dev/null -X POST "$BASE/admin/registrations/2/cancel" -H "Referer: $BASE/station"
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=2;")
+check "volunteer CANNOT cancel tomorrow's class" "$got" "confirmed"
+curl -s -b "$VJAR" -o /dev/null -X POST "$BASE/admin/registrations/3/cancel" -H "Referer: $BASE/station"
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=3;")
+check "volunteer CANNOT cancel another campus" "$got" "confirmed"
+curl -s -b "$VJAR" -o /dev/null -X POST "$BASE/admin/registrations/1/cancel" -H "Referer: $BASE/station"
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=1;")
+check "volunteer CANNOT cancel a checked-in child" "$got" "confirmed"
+
+loc=$(curl -s -b "$VJAR" -o /dev/null -w '%{redirect_url}' -X POST "$BASE/admin/registrations/4/cancel" -H "Referer: $BASE/station")
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=4;")
+check "volunteer CAN cancel today's own-campus child" "$got" "canceled"
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=5;")
+check "oldest waitlisted child promoted" "$got" "confirmed"
+got=$(sqlite3 "$WORK/nextgen.db" "SELECT status FROM registrations WHERE id=6;")
+check "next waitlisted child still waiting" "$got" "waitlisted"
+case "$loc" in *Anak+Antri*|*Anak%20Antri*) ok "flash names the promoted child";; *) bad "promoted flash" "$loc";; esac
+n=$(sqlite3 "$WORK/nextgen.db" "SELECT COUNT(*) FROM audit_logs WHERE action='registration.cancel' AND role='checkin' AND staffed_by='Rina';")
+check "cancel audited with shift name" "$n" "1"
+n=$(sqlite3 "$WORK/nextgen.db" "SELECT COUNT(*) FROM audit_logs WHERE action='registration.cancel.denied';")
+check "denied cancels audited" "$n" "2"
 
 echo
 echo "=== 5. admin overrides + audit trail ==="

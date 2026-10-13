@@ -34,6 +34,13 @@ func RecomputeClass(classID uint) error {
 
 // CancelByCode marks a registration canceled, rebalances, and triggers promotion events.
 func CancelByCode(code string) error {
+	_, err := CancelByCodePromoted(code)
+	return err
+}
+
+// CancelByCodePromoted is CancelByCode but also returns the waitlisted
+// registrations that moved up into the freed slot, so the caller can say so.
+func CancelByCodePromoted(code string) ([]models.Registration, error) {
 	var promoted []models.Registration
 	err := db.Conn().Transaction(func(tx *gorm.DB) error {
 		var reg models.Registration
@@ -52,10 +59,10 @@ func CancelByCode(code string) error {
 		return err
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	notifyPromotions(promoted)
-	return nil
+	return promoted, nil
 }
 
 // RecomputeClassTx is kept for callers inside an existing TX (no events here).
