@@ -78,8 +78,8 @@ code=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code}' "$BASE/station")
 check "volunteer CAN reach /station" "$code" "200"
 
 for path in /admin/classes /admin/parents /admin/attendance /admin/families /admin/users /admin/roster; do
-  code=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code}' "$BASE$path")
-  check "volunteer BLOCKED from $path" "$code" "403"
+  got=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code} %{redirect_url}' "$BASE$path")
+  check "volunteer BLOCKED from $path (sent to station)" "$got" "303 $BASE/station"
 done
 
 code=$(curl -s -b "$VJAR" -o /dev/null -w '%{http_code}' -X POST "$BASE/admin/registrations/1/delete")
@@ -154,6 +154,25 @@ echo "=== 6. old guessable cookie is dead ==="
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "admin_session=ok" -L "$BASE/admin/classes")
 body=$(curl -s -b "admin_session=ok" -L "$BASE/admin/classes" | grep -c "Masuk")
 check "admin_session=ok now lands on login" "$body" "1"
+
+echo
+echo "=== 6b. 2026-10-14 prod trace: volunteer opens an old admin link, logs in ==="
+# Prod log: GET /admin/parents/73 -> login?next=... -> login as fju-checkin -> 403.
+# The volunteer never reached /station and concluded cancel did not exist.
+TJAR="$WORK/trace.jar"
+curl -s -c "$TJAR" -o /dev/null "$BASE/admin/parents/1"
+# No -X POST: like a browser, curl must switch to GET after the 303.
+final=$(curl -s -b "$TJAR" -c "$TJAR" -L -o /dev/null -w '%{http_code} %{url_effective}' \
+  "$BASE/admin/login" --data-urlencode "next=/admin/parents/1" \
+  -d "username=fjb-checkin&password=volunteer123")
+check "old admin link + volunteer login lands on station" "$final" "200 $BASE/station"
+
+final=$(curl -s -b "$VJAR" -L -o /dev/null -w '%{http_code} %{url_effective}' "$BASE/admin/classes")
+check "volunteer opening /admin/classes is sent to station" "$final" "200 $BASE/station"
+
+loc=$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "$BASE/admin/login" \
+  --data-urlencode "next=//evil.example/x" -d "username=fjb-checkin&password=volunteer123")
+case "$loc" in *evil.example*) bad "login next=//host is not an open redirect" "$loc";; *) ok "login next=//host is not an open redirect";; esac
 
 echo
 echo "=== 7. brute force lockout ==="
