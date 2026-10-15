@@ -169,6 +169,14 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 				}
 			}
 			if !allowed {
+				// A check-in volunteer opening an admin page (old bookmark, a link
+				// shared in chat, or the login ?next= bounce) is sent to their own
+				// landing page instead of a dead end. Only GETs: a forbidden
+				// mutation still gets a hard 403.
+				if r.Method == http.MethodGet {
+					http.Redirect(w, r, defaultLanding(u.Role), http.StatusSeeOther)
+					return
+				}
 				// Give volunteers a way back instead of a dead-end error page.
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				w.WriteHeader(http.StatusForbidden)
@@ -346,7 +354,10 @@ func AdminLoginSubmit(w http.ResponseWriter, r *http.Request) {
 	db.Conn().Model(&u).Update("last_login", &now)
 	writeAudit(r, &u, "auth.login", "user:"+u.Username, "")
 
-	if next == "" || !strings.HasPrefix(next, "/") {
+	// "//host" and "/\host" are protocol-relative to browsers: reject them so
+	// ?next= cannot bounce a freshly logged-in user to another site.
+	if next == "" || !strings.HasPrefix(next, "/") ||
+		strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") {
 		next = defaultLanding(u.Role)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
